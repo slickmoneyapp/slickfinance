@@ -1,0 +1,81 @@
+import type { Subscription } from './types';
+
+const now = new Date().toISOString();
+
+function daysFromNow(n: number) {
+  return new Date(Date.now() + 1000 * 60 * 60 * 24 * n).toISOString();
+}
+
+export const seedSubscriptions: Subscription[] = [
+  {
+    id: 'sub_netflix_1',
+    serviceName: 'Netflix',
+    domain: 'netflix.com',
+    category: 'Streaming',
+    price: 13.99,
+    currency: 'USD',
+    billingCycle: 'monthly',
+    nextChargeDate: daysFromNow(9),
+    description: 'Standard plan',
+    url: 'netflix.com',
+    paymentMethod: 'Visa •••• 1234',
+    list: 'Personal',
+    status: 'active',
+    isTrial: false,
+    reminderEnabled: true,
+    reminderDaysBefore: 1,
+    billingHistory: [
+      { id: 'bh_n1', date: daysFromNow(-30), amount: 13.99, currency: 'USD', label: 'Charged' },
+      { id: 'bh_n0', date: daysFromNow(-60), amount: 13.99, currency: 'USD', label: 'Subscribed' },
+    ],
+    createdAt: now,
+    updatedAt: now,
+  },
+  {
+    id: 'sub_chatgpt_1',
+    serviceName: 'ChatGPT Plus',
+    domain: 'openai.com',
+    category: 'Productivity',
+    price: 20,
+    currency: 'USD',
+    billingCycle: 'monthly',
+    nextChargeDate: daysFromNow(3),
+    description: 'Work subscription',
+    url: 'chat.openai.com',
+    paymentMethod: 'Apple Pay',
+    list: 'Business',
+    status: 'active',
+    isTrial: false,
+    reminderEnabled: true,
+    reminderDaysBefore: 1,
+    billingHistory: [
+      { id: 'bh_c1', date: daysFromNow(-30), amount: 20, currency: 'USD', label: 'Charged' },
+      { id: 'bh_c0', date: daysFromNow(-60), amount: 20, currency: 'USD', label: 'Subscribed' },
+    ],
+    createdAt: now,
+    updatedAt: now,
+  },
+  {
+    id: 'sub_spotify_1',
+    serviceName: 'Spotify',
+    domain: 'spotify.com',
+    category: 'Music',
+    price: 11.99,
+    currency: 'USD',
+    billingCycle: 'monthly',
+    nextChargeDate: daysFromNow(1),
+    description: 'Family plan',
+    url: 'spotify.com',
+    paymentMethod: 'PayPal',
+    list: 'Personal',
+    status: 'active',
+    isTrial: false,
+    reminderEnabled: true,
+    reminderDaysBefore: 1,
+    billingHistory: [
+      { id: 'bh_s0', date: now, amount: 11.99, currency: 'USD', label: 'Subscribed' },
+    ],
+    createdAt: now,
+    updatedAt: now,
+  },
+];
