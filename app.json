@@ -1,13 +1,13 @@
 {
   "expo": {
-    "name": "budget-planner",
-    "slug": "budget-planner",
+    "name": "Slick finance",
+    "slug": "slick-finance",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/icon.png",
+    "icon": "./appicon.png",
     "userInterfaceStyle": "light",
     "splash": {
-      "image": "./assets/splash-icon.png",
+      "image": "./appicon.png",
       "resizeMode": "contain",
       "backgroundColor": "#ffffff"
     },
@@ -21,20 +21,17 @@
     "android": {
       "package": "com.budgetplanner.app",
       "adaptiveIcon": {
-        "backgroundColor": "#E6F4FE",
-        "foregroundImage": "./assets/android-icon-foreground.png",
-        "backgroundImage": "./assets/android-icon-background.png",
-        "monochromeImage": "./assets/android-icon-monochrome.png"
+        "backgroundColor": "#F4F4FF",
+        "foregroundImage": "./appicon.png"
       },
       "predictiveBackGestureEnabled": false
     },
     "web": {
-      "favicon": "./assets/favicon.png"
+      "favicon": "./appicon.png"
     },
     "plugins": [
       "expo-font",
-      "expo-dev-client",
-      "@react-native-community/datetimepicker"
+      "expo-dev-client"
     ],
     "extra": {
       "eas": {

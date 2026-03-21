@@ -2,20 +2,31 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import type { Subscription } from './types';
+import { buildBillingHistoryFromSubscription } from './buildBillingHistoryFromSubscription';
 import { seedSubscriptions } from './seed';
 
-const STORAGE_KEY = 'subscriptions:v3';
+const STORAGE_KEY = 'subscriptions:v5';
 
 /** Fill in any fields added after v1 so old cached data never crashes */
 function migrateItem(raw: any): Subscription {
-  return {
+  const base = {
     list: 'Personal',
     isTrial: raw.status === 'trial',
     reminderDaysBefore: 1,
+    reminderTime: '09:00',
     url: undefined,
+    notificationIds: Array.isArray(raw.notificationIds)
+      ? raw.notificationIds
+      : raw.notificationId
+        ? [raw.notificationId]
+        : [],
     billingHistory: [],
     ...raw,
   } as Subscription;
+  if (!base.subscriptionStartDate) {
+    base.subscriptionStartDate = (base.createdAt ?? nowIso()).split('T')[0];
+  }
+  return base;
 }
 
 function nowIso() {
@@ -39,7 +50,11 @@ type SubscriptionsState = {
   setSort: (sort: SubscriptionSort) => void;
   setFilter: (filter: SubscriptionFilter) => void;
 
-  add: (partial: Omit<Subscription, 'id' | 'createdAt' | 'updatedAt' | 'billingHistory'>) => Subscription;
+  add: (
+    partial: Omit<Subscription, 'id' | 'createdAt' | 'updatedAt' | 'billingHistory' | 'subscriptionStartDate'> & {
+      subscriptionStartDate?: string;
+    }
+  ) => Subscription;
   update: (id: string, patch: Partial<Omit<Subscription, 'id' | 'createdAt'>>) => void;
   remove: (id: string) => void;
   seedIfEmpty: () => void;
@@ -59,26 +74,36 @@ export const useSubscriptionsStore = create<SubscriptionsState>()(
 
       add: (partial) => {
         const created = nowIso();
+        const startDate = partial.subscriptionStartDate ?? created.split('T')[0];
         const sub: Subscription = {
-          list: 'Personal',
-          isTrial: false,
-          reminderDaysBefore: 1,
-          billingHistory: [
-            { id: `bh_${Date.now()}`, date: created, amount: partial.price, currency: partial.currency, label: 'Subscribed' },
-          ],
           ...partial,
+          subscriptionStartDate: startDate,
           id: makeId(),
           createdAt: created,
           updatedAt: created,
+          billingHistory: [],
         };
+        sub.billingHistory = buildBillingHistoryFromSubscription(sub);
         set({ items: [sub, ...get().items] });
         return sub;
       },
 
       update: (id, patch) => {
         const updatedAt = nowIso();
+        const prev = get().items.find((s) => s.id === id);
+        if (!prev) return;
+        const merged: Subscription = { ...prev, ...patch, updatedAt };
+        const rebuild =
+          patch.subscriptionStartDate != null ||
+          patch.billingCycle != null ||
+          patch.price != null ||
+          patch.customCycleDays != null ||
+          patch.currency != null;
+        const billingHistory = rebuild
+          ? buildBillingHistoryFromSubscription(merged)
+          : merged.billingHistory;
         set({
-          items: get().items.map((s) => (s.id === id ? { ...s, ...patch, updatedAt } : s)),
+          items: get().items.map((s) => (s.id === id ? { ...merged, billingHistory } : s)),
         });
       },
 

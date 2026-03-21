@@ -1,17 +1,29 @@
-import React from 'react';
-import { Image, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
-import { useFonts, BricolageGrotesque_800ExtraBold } from '@expo-google-fonts/bricolage-grotesque';
+import React, { useLayoutEffect } from 'react';
+import { Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { CompanyLogo } from '../components/CompanyLogo';
-import type { BottomTabScreenProps } from '@react-navigation/bottom-tabs';
-import type { RootTabsParamList } from '../../App';
-import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
-import * as Haptics from 'expo-haptics';
-import { activeSubscriptionsCount, formatMoney, monthlySpendTotal, topSubscriptionsByPrice } from '../features/subscriptions/calc';
+import type { RootStackParamList } from '../../App';
+import type { HomeStackParamList } from '../navigation/HomeStack';
+import { TabScreenBackground } from '../components/TabScreenBackground';
+import { IconCircleButton } from '../ui/components';
+import { hapticSelection } from '../ui/haptics';
+import { activeSubscriptionsCount, monthlySpendTotal, topSubscriptionsByPrice } from '../features/subscriptions/calc';
+import { AnimatedMoneyAmount } from '../components/AnimatedMoneyAmount';
 import { useSubscriptionsStore } from '../features/subscriptions/store';
+import { colors, radius, spacing } from '../ui/theme';
+import {
+  ENABLE_BUDGET_TAB,
+  SHOW_HOME_BUDGET_CARD,
+  SHOW_HOME_HERO_TOTALS,
+  USE_FIGMA_SINGLE_PAGE_NAV,
+} from '../config/featureFlags';
+import { navigateRoot } from '../navigation/navigateRoot';
+import { useMonthlySpendCountFromOnFocus } from '../hooks/useMonthlySpendCountFromOnFocus';
 
-type Props = BottomTabScreenProps<RootTabsParamList, 'Home'>;
-
-const FONTS = { BricolageGrotesque_800ExtraBold };
+/** Home is mounted either as root stack (Figma) or as `HomeMain` inside `HomeStack` (tabs). */
+type Props =
+  | NativeStackScreenProps<RootStackParamList, 'Home'>
+  | NativeStackScreenProps<HomeStackParamList, 'HomeMain'>;
 
 type BudgetRow = {
   id: string;
@@ -29,15 +41,7 @@ const budgetRows: BudgetRow[] = [
 ];
 
 export function HomeScreen({ navigation }: Props) {
-  const insets = useSafeAreaInsets();
-  const { width: screenWidth } = useWindowDimensions();
-  const [fontsLoaded] = useFonts(FONTS);
-  const tabBarSpace = 62 + Math.max(10, insets.bottom) + 22;
-  const heroTopPadding = insets.top + 14;
-  const bgSource = require('../../background.png');
-  const bgResolved = Image.resolveAssetSource(bgSource);
-  const bgScale = bgResolved?.width && bgResolved?.height ? bgResolved.height / bgResolved.width : 0.81;
-  const bgHeight = Math.round(screenWidth * bgScale);
+  const heroTopPadding = 8;
 
   const subs = useSubscriptionsStore((s) => s.items);
   const currency = subs[0]?.currency ?? 'USD';
@@ -45,52 +49,83 @@ export function HomeScreen({ navigation }: Props) {
   const subsCount = activeSubscriptionsCount(subs);
   const top3 = topSubscriptionsByPrice(subs, 3);
 
-  if (!fontsLoaded) return null;
+  const { countFrom: subsMonthlyCountFrom, onCountComplete: onSubsMonthlyCountComplete } =
+    useMonthlySpendCountFromOnFocus();
+
+  function openAddSubscription() {
+    navigateRoot(navigation as any, 'AddSubscription');
+  }
+
+  useLayoutEffect(() => {
+    navigation.setOptions({
+      headerRight: () => (
+        <View style={{ flexDirection: 'row', gap: 8, alignItems: 'center' }}>
+          {USE_FIGMA_SINGLE_PAGE_NAV ? (
+            <IconCircleButton
+              icon="chevron-back"
+              onPress={() => (navigation as any).navigate('Subscriptions')}
+            />
+          ) : null}
+          <IconCircleButton icon="add" filled onPress={openAddSubscription} />
+        </View>
+      ),
+    });
+  }, [navigation]);
 
   return (
-    <View style={styles.safe}>
-      <View pointerEvents="none" style={styles.topIllustration}>
-        <Image
-          source={bgSource}
-          style={{ width: screenWidth, height: bgHeight }}
-          resizeMode="cover"
+    <TabScreenBackground variant="figma" edges={['left', 'right', 'bottom']}>
+      <ScrollView
+        contentContainerStyle={[styles.content, { paddingBottom: 24 }]}
+        showsVerticalScrollIndicator={false}
+        {...(Platform.OS === 'ios' ? { contentInsetAdjustmentBehavior: 'automatic' as const } : {})}
+      >
+        <HeroSection
+          topPadding={heroTopPadding}
+          showTotals={SHOW_HOME_HERO_TOTALS}
+          showEditBudget={ENABLE_BUDGET_TAB}
+          onPressAdd={() => {}}
+          onPressEditBudget={() => (navigation as any).navigate('Budget')}
         />
-      </View>
 
-      {/* Keep illustration flush to the very top; apply safe-area only to content */}
-      <SafeAreaView style={styles.contentSafe} edges={['left', 'right', 'bottom']}>
-        <ScrollView
-          contentContainerStyle={[styles.content, { paddingBottom: tabBarSpace }]}
-          showsVerticalScrollIndicator={false}
-        >
-          <HeroSection
-            topPadding={heroTopPadding}
-            onPressAdd={() => {}}
-            onPressEditBudget={() => navigation.navigate('Budget')}
-          />
+        {SHOW_HOME_BUDGET_CARD && ENABLE_BUDGET_TAB ? (
+          <Pressable
+            onPress={() => {
+              void hapticSelection();
+              (navigation as any).navigate('Budget');
+            }}
+            style={({ pressed }) => [styles.card, pressed && styles.pressed]}
+          >
+            <Text style={styles.cardTitle}>April Remaining Budget</Text>
+            <View style={styles.amountRow}>
+              <Text style={styles.cardAmount}>$420.00</Text>
+              <Text style={styles.amountSub}>/ $1400.00</Text>
+            </View>
 
-        <Pressable onPress={() => navigation.navigate('Budget')} style={({ pressed }) => [styles.card, pressed && styles.pressed]}>
-          <Text style={styles.cardTitle}>April Remaining Budget</Text>
-          <View style={styles.amountRow}>
-            <Text style={styles.cardAmount}>$420.00</Text>
-            <Text style={styles.amountSub}>/ $1400.00</Text>
-          </View>
-
-          <View style={{ marginTop: 12 }}>
-            {budgetRows.map((row) => (
-              <BudgetProgressRow key={row.id} row={row} onPress={() => navigation.navigate('Budget')} />
-            ))}
-          </View>
-          <Text style={styles.cardFoot}>Running a little high</Text>
-        </Pressable>
+            <View style={{ marginTop: 12 }}>
+              {budgetRows.map((row) => (
+                <BudgetProgressRow key={row.id} row={row} onPress={() => (navigation as any).navigate('Budget')} />
+              ))}
+            </View>
+            <Text style={styles.cardFoot}>Running a little high</Text>
+          </Pressable>
+        ) : null}
 
         <Pressable
-          onPress={() => navigation.navigate('Subscriptions')}
+          onPress={() => {
+            void hapticSelection();
+            (navigation as any).navigate('Subscriptions');
+          }}
           style={({ pressed }) => [styles.card, pressed && styles.pressed]}
         >
           <Text style={styles.cardTitle}>Subscriptions</Text>
           <View style={styles.amountRow}>
-            <Text style={styles.cardAmount}>{formatMoney(subsMonthly, currency)}</Text>
+            <AnimatedMoneyAmount
+              amount={subsMonthly}
+              currency={currency as any}
+              style={styles.cardAmount}
+              countFrom={subsMonthlyCountFrom}
+              onCountComplete={onSubsMonthlyCountComplete}
+            />
             <Text style={styles.amountSub}>/ month</Text>
           </View>
           <Text style={styles.cardFoot}>{subsCount} active</Text>
@@ -111,47 +146,55 @@ export function HomeScreen({ navigation }: Props) {
             </View>
           ) : null}
         </Pressable>
-
-        </ScrollView>
-      </SafeAreaView>
-    </View>
+      </ScrollView>
+    </TabScreenBackground>
   );
 }
 
 function HeroSection({
   topPadding,
+  showTotals,
+  showEditBudget,
   onPressAdd,
   onPressEditBudget,
 }: {
   topPadding: number;
+  showTotals: boolean;
+  showEditBudget: boolean;
   onPressAdd: () => void;
   onPressEditBudget: () => void;
 }) {
   return (
-    <View style={[styles.hero, { paddingTop: topPadding }]}>
-      <Text style={styles.label}>Available to Spend</Text>
-      <Text style={styles.heroAmount}>$1,525.00</Text>
-      <Text style={styles.delta}>+$320 vs last month</Text>
+    <View style={[styles.hero, { paddingTop: topPadding, minHeight: showTotals ? 274 : 100 }]}>
+      {showTotals ? (
+        <>
+          <Text style={styles.label}>Available to Spend</Text>
+          <Text style={styles.heroAmount}>$1,525.00</Text>
+          <Text style={styles.delta}>+$320 vs last month</Text>
+        </>
+      ) : null}
 
-      <View style={styles.ctaRow}>
+      <View style={[styles.ctaRow, !showTotals && { marginTop: 8 }]}>
         <Pressable
           onPress={() => {
-            Haptics.selectionAsync();
+            void hapticSelection();
             onPressAdd();
           }}
           style={({ pressed }) => [styles.primaryCta, pressed && styles.pressed]}
         >
           <Text style={styles.primaryText}>Add Transaction</Text>
         </Pressable>
-        <Pressable
-          onPress={() => {
-            Haptics.selectionAsync();
-            onPressEditBudget();
-          }}
-          style={({ pressed }) => [styles.secondaryCta, pressed && styles.pressed]}
-        >
-          <Text style={styles.secondaryText}>Edit Budget</Text>
-        </Pressable>
+        {showEditBudget ? (
+          <Pressable
+            onPress={() => {
+              void hapticSelection();
+              onPressEditBudget();
+            }}
+            style={({ pressed }) => [styles.secondaryCta, pressed && styles.pressed]}
+          >
+            <Text style={styles.secondaryText}>Edit Budget</Text>
+          </Pressable>
+        ) : null}
       </View>
     </View>
   );
@@ -160,7 +203,13 @@ function HeroSection({
 function BudgetProgressRow({ row, onPress }: { row: BudgetRow; onPress: () => void }) {
   const ratio = Math.max(0, Math.min(1, row.spent / row.total));
   return (
-    <Pressable onPress={onPress} style={({ pressed }) => [styles.budgetRow, pressed && { opacity: 0.85 }]}>
+    <Pressable
+      onPress={() => {
+        void hapticSelection();
+        onPress();
+      }}
+      style={({ pressed }) => [styles.budgetRow, pressed && { opacity: 0.85 }]}
+    >
       <View style={[styles.dot, { backgroundColor: row.dotColor }]} />
       <View style={{ flex: 1 }}>
         <View style={styles.budgetTop}>
@@ -182,11 +231,7 @@ function LogoBubble({ children, overlap }: { children: React.ReactNode; overlap?
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: '#F5F5F5' },
-  // Background illustration: visible, non-interactive, behind content.
-  topIllustration: { position: 'absolute', top: 0, left: 0 },
-  contentSafe: { flex: 1, backgroundColor: 'transparent' },
-  content: { paddingHorizontal: 16, paddingTop: 0 },
+  content: { paddingHorizontal: spacing.screenX, paddingTop: 0 },
   pressed: { opacity: 0.84 },
 
   hero: { paddingHorizontal: 16, paddingBottom: 16, minHeight: 274 },
@@ -199,7 +244,7 @@ const styles = StyleSheet.create({
   primaryText: { fontFamily: 'SF Pro Display', fontSize: 17, fontWeight: '400', color: '#FFFFFF' },
   secondaryText: { fontFamily: 'SF Pro Display', fontSize: 17, fontWeight: '500', color: '#1A1A1A' },
 
-  card: { backgroundColor: '#FFFFFF', borderRadius: 22, paddingHorizontal: 18, paddingTop: 16, paddingBottom: 14, marginTop: 16 },
+  card: { backgroundColor: colors.surface, borderRadius: radius.card, paddingHorizontal: 18, paddingTop: 16, paddingBottom: 14, marginTop: 16 },
   cardTitle: { fontFamily: 'SF Pro Display', fontSize: 17, fontWeight: '600', color: '#000000' },
   amountRow: { marginTop: 8, flexDirection: 'row', alignItems: 'baseline', gap: 6 },
   cardAmount: { fontFamily: 'BricolageGrotesque_800ExtraBold', fontSize: 32, lineHeight: 32, color: '#000000' },
@@ -220,4 +265,3 @@ const styles = StyleSheet.create({
   logoFallback: { width: 30, height: 30, borderRadius: 8, backgroundColor: 'rgba(11, 8, 3, 0.06)', alignItems: 'center', justifyContent: 'center' },
   logoFallbackText: { fontSize: 14, fontWeight: '900', color: 'rgba(11, 8, 3, 0.72)' },
 });
-

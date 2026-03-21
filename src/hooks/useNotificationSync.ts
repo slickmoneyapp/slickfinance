@@ -2,8 +2,8 @@ import { useEffect, useRef } from 'react';
 import { AppState } from 'react-native';
 import {
   requestNotificationPermissions,
-  scheduleRenewalReminder,
-  cancelNotification,
+  scheduleRenewalReminders,
+  cancelNotifications,
 } from '../features/notifications/service';
 import { useSubscriptionsStore } from '../features/subscriptions/store';
 import type { Subscription } from '../features/subscriptions/types';
@@ -56,8 +56,8 @@ export function useNotificationSync() {
 
       // Removed items — cancel their notifications
       for (const prev of prevItems) {
-        if (!nextMap.has(prev.id) && prev.notificationId) {
-          cancelNotification(prev.notificationId);
+        if (!nextMap.has(prev.id) && prev.notificationIds?.length) {
+          cancelNotifications(prev.notificationIds);
         }
       }
 
@@ -66,19 +66,24 @@ export function useNotificationSync() {
         const prev = prevMap.get(next.id);
         if (!prev) {
           // Newly added
-          scheduleRenewalReminder(next, 1).then((id) => {
-            if (id) useSubscriptionsStore.getState().update(next.id, { notificationId: id });
+          scheduleRenewalReminders(next).then((ids) => {
+            useSubscriptionsStore.getState().update(next.id, { notificationIds: ids });
           });
         } else if (
           prev.nextChargeDate !== next.nextChargeDate ||
           prev.reminderEnabled !== next.reminderEnabled ||
-          prev.status !== next.status
+          prev.status !== next.status ||
+          prev.reminderDaysBefore !== next.reminderDaysBefore ||
+          prev.reminderTime !== next.reminderTime ||
+          prev.billingCycle !== next.billingCycle ||
+          prev.customCycleDays !== next.customCycleDays ||
+          prev.serviceName !== next.serviceName
         ) {
           // Key fields changed — reschedule
-          if (next.notificationId) cancelNotification(next.notificationId);
-          scheduleRenewalReminder(next, 1).then((id) => {
-            if (id !== next.notificationId) {
-              useSubscriptionsStore.getState().update(next.id, { notificationId: id });
+          if (next.notificationIds?.length) cancelNotifications(next.notificationIds);
+          scheduleRenewalReminders(next).then((ids) => {
+            if (JSON.stringify(ids) !== JSON.stringify(next.notificationIds ?? [])) {
+              useSubscriptionsStore.getState().update(next.id, { notificationIds: ids });
             }
           });
         }
@@ -94,10 +99,10 @@ export function useNotificationSync() {
 async function fullResync() {
   const { items, update } = useSubscriptionsStore.getState();
   for (const sub of items) {
-    if (sub.notificationId) await cancelNotification(sub.notificationId);
-    const newId = await scheduleRenewalReminder(sub, 1);
-    if (newId !== sub.notificationId) {
-      update(sub.id, { notificationId: newId });
+    if (sub.notificationIds?.length) await cancelNotifications(sub.notificationIds);
+    const ids = await scheduleRenewalReminders(sub);
+    if (JSON.stringify(ids) !== JSON.stringify(sub.notificationIds ?? [])) {
+      update(sub.id, { notificationIds: ids });
     }
   }
 }

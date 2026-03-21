@@ -46,6 +46,78 @@ export function topSubscriptionsByPrice(subs: Subscription[], n: number) {
     .slice(0, n);
 }
 
+/** Sum billed amounts in a calendar month from `Charged` / `Subscribed` history entries. */
+export function sumChargesInCalendarMonth(subs: Subscription[], year: number, month: number): number {
+  let sum = 0;
+  for (const sub of subs) {
+    for (const e of sub.billingHistory) {
+      if (e.label !== 'Charged' && e.label !== 'Subscribed') continue;
+      const d = new Date(e.date);
+      if (Number.isNaN(d.getTime())) continue;
+      if (d.getFullYear() !== year || d.getMonth() !== month) continue;
+      sum += e.amount;
+    }
+  }
+  return Math.round(sum * 100) / 100;
+}
+
+export type MonthOverMonthPill = {
+  tone: 'green' | 'red' | 'neutral' | 'same';
+  label: string;
+};
+
+const MONTHS_SHORT = [
+  'Jan',
+  'Feb',
+  'Mar',
+  'Apr',
+  'May',
+  'Jun',
+  'Jul',
+  'Aug',
+  'Sep',
+  'Oct',
+  'Nov',
+  'Dec',
+] as const;
+
+/**
+ * Compares **actual** billed totals (billing history) for this calendar month vs the previous month.
+ * Green = spending went down, red = up, neutral = flat / no prior data to compare.
+ */
+export function getMonthOverMonthSpendPill(subs: Subscription[], now: Date = new Date()): MonthOverMonthPill | null {
+  const cy = now.getFullYear();
+  const cm = now.getMonth();
+  const prev = new Date(cy, cm - 1, 1);
+  const py = prev.getFullYear();
+  const pm = prev.getMonth();
+
+  const curr = sumChargesInCalendarMonth(subs, cy, cm);
+  const prevTotal = sumChargesInCalendarMonth(subs, py, pm);
+
+  const prevLabel = MONTHS_SHORT[pm];
+
+  if (curr === 0 && prevTotal === 0) return null;
+
+  if (prevTotal === 0 && curr > 0) {
+    return { tone: 'neutral', label: `New vs ${prevLabel}` };
+  }
+
+  if (prevTotal > 0 && curr === 0) {
+    return { tone: 'green', label: `100% less vs ${prevLabel}` };
+  }
+
+  const diff = curr - prevTotal;
+  const pct = Math.round((Math.abs(diff) / prevTotal) * 100);
+  if (pct === 0 || Math.abs(diff) < 0.005) {
+    return { tone: 'same', label: `Same vs ${prevLabel}` };
+  }
+  if (diff < 0) {
+    return { tone: 'green', label: `${pct}% less vs ${prevLabel}` };
+  }
+  return { tone: 'red', label: `${pct}% more vs ${prevLabel}` };
+}
+
 export function formatMoney(amount: number, currency: Subscription['currency']) {
   // Simple MVP formatter; can be swapped for Intl later.
   const rounded = Math.round(amount * 100) / 100;

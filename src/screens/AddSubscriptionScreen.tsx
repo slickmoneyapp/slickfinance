@@ -3,6 +3,7 @@ import {
   ActivityIndicator,
   Alert,
   KeyboardAvoidingView,
+  Linking,
   Platform,
   Pressable,
   ScrollView,
@@ -12,106 +13,56 @@ import {
   TextInput,
   View,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import DateTimePicker from '@react-native-community/datetimepicker';
 import { Ionicons } from '@expo/vector-icons';
-import * as Haptics from 'expo-haptics';
+import { useSafeAreaInsets, type EdgeInsets } from 'react-native-safe-area-context';
+import { AppActionSheet } from '../components/AppActionSheet';
+import { DatePickerModal } from '../components/DatePickerModal';
+import { TimePickerModal } from '../components/TimePickerModal';
+import { hapticImpactMedium, hapticSelection } from '../ui/haptics';
 import { CompanyLogo } from '../components/CompanyLogo';
+import { toLocalDateString } from '../features/subscriptions/buildBillingHistoryFromSubscription';
 import { useSubscriptionsStore } from '../features/subscriptions/store';
+import { requestNotificationPermissions } from '../features/notifications/service';
 import { searchBrands, type BrandResult } from '../utils/brandSearch';
+import { colors, radius, sheetTypography } from '../ui/theme';
+import { AppButton, AppScreen, HeaderTextAction, IconCircleButton, ScreenHeader } from '../ui/components';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../../App';
 import type { Subscription } from '../features/subscriptions/types';
+import {
+  ADD_SUBSCRIPTION_CURRENCIES,
+  BASE_CATEGORIES,
+  BILLING_CYCLE_LABELS,
+  BILLING_CYCLE_OPTIONS,
+  CURRENCY_SYMBOLS,
+  POPULAR_SERVICES_BY_SECTION,
+  type ServiceTemplate,
+} from '../features/subscriptions/addSubscriptionCatalog';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'AddSubscription'>;
+type SheetType = null | 'list' | 'category' | 'currency' | 'billingCycle' | 'notify';
 
 // ─── Design tokens (matches HomeScreen) ──────────────────────────────────────
-const BG = '#F5F5F5';
-const CARD = '#FFFFFF';
-const INK = '#0B0803';
-const DIM = 'rgba(11,8,3,0.5)';
-const SEP = 'rgba(11,8,3,0.07)';
-const GREEN = '#30CE5A';
-
-// ─── Popular services catalogue ───────────────────────────────────────────────
-type ServiceTemplate = { name: string; domain: string; category: Subscription['category'] };
-
-const POPULAR: { section: string; items: ServiceTemplate[] }[] = [
-  {
-    section: 'Streaming',
-    items: [
-      { name: 'Netflix', domain: 'netflix.com', category: 'Streaming' },
-      { name: 'YouTube Premium', domain: 'youtube.com', category: 'Streaming' },
-      { name: 'Amazon Prime', domain: 'primevideo.com', category: 'Streaming' },
-      { name: 'Disney+', domain: 'disneyplus.com', category: 'Streaming' },
-      { name: 'Hulu', domain: 'hulu.com', category: 'Streaming' },
-      { name: 'HBO Max', domain: 'hbomax.com', category: 'Streaming' },
-      { name: 'Apple TV+', domain: 'apple.com', category: 'Streaming' },
-    ],
-  },
-  {
-    section: 'Music',
-    items: [
-      { name: 'Spotify', domain: 'spotify.com', category: 'Music' },
-      { name: 'Apple Music', domain: 'apple.com', category: 'Music' },
-      { name: 'Tidal', domain: 'tidal.com', category: 'Music' },
-      { name: 'Deezer', domain: 'deezer.com', category: 'Music' },
-    ],
-  },
-  {
-    section: 'Productivity',
-    items: [
-      { name: 'ChatGPT Plus', domain: 'openai.com', category: 'Productivity' },
-      { name: 'Notion', domain: 'notion.so', category: 'Productivity' },
-      { name: 'Adobe Creative Cloud', domain: 'adobe.com', category: 'Productivity' },
-      { name: 'Microsoft 365', domain: 'microsoft.com', category: 'Productivity' },
-      { name: 'Slack', domain: 'slack.com', category: 'Productivity' },
-      { name: 'Figma', domain: 'figma.com', category: 'Productivity' },
-      { name: 'Dropbox', domain: 'dropbox.com', category: 'Productivity' },
-    ],
-  },
-  {
-    section: 'Cloud Storage',
-    items: [
-      { name: 'iCloud+', domain: 'apple.com', category: 'Cloud Storage' },
-      { name: 'Google One', domain: 'google.com', category: 'Cloud Storage' },
-      { name: 'OneDrive', domain: 'microsoft.com', category: 'Cloud Storage' },
-    ],
-  },
-  {
-    section: 'Gaming',
-    items: [
-      { name: 'Xbox Game Pass', domain: 'xbox.com', category: 'Gaming' },
-      { name: 'PlayStation Plus', domain: 'playstation.com', category: 'Gaming' },
-      { name: 'Apple Arcade', domain: 'apple.com', category: 'Gaming' },
-      { name: 'Nintendo Switch Online', domain: 'nintendo.com', category: 'Gaming' },
-    ],
-  },
-  {
-    section: 'Fitness',
-    items: [
-      { name: 'Peloton', domain: 'onepeloton.com', category: 'Fitness' },
-      { name: 'Strava', domain: 'strava.com', category: 'Fitness' },
-      { name: 'Calm', domain: 'calm.com', category: 'Fitness' },
-      { name: 'Headspace', domain: 'headspace.com', category: 'Fitness' },
-    ],
-  },
-];
-
-const CYCLE_OPTIONS: Subscription['billingCycle'][] = ['weekly', 'monthly', 'quarterly', 'yearly'];
-const CYCLE_LABELS: Record<string, string> = {
-  weekly: 'Every week',
-  monthly: 'Every month',
-  quarterly: 'Every 3 months',
-  yearly: 'Every year',
-};
-const CURRENCIES: Array<'USD' | 'EUR' | 'GEL'> = ['USD', 'EUR', 'GEL'];
-const CURRENCY_SYMBOLS: Record<string, string> = { USD: '$', EUR: '€', GEL: '₾' };
-const CATEGORIES: Subscription['category'][] = [
-  'Streaming', 'Music', 'Productivity', 'Cloud Storage', 'Gaming', 'Fitness', 'Education', 'Utilities', 'Other',
-];
+const BG = colors.bg;
+const CARD = colors.surface;
+const INK = colors.text;
+const DIM = colors.textMuted;
+const SEP = colors.borderSoft;
+const GREEN = colors.success;
 
 export function AddSubscriptionScreen({ navigation }: Props) {
+  const safeAreaInsets = useSafeAreaInsets();
+  /** Same as Edit: fullScreenModal often reports 0 insets; Modal sheets need non-zero top/bottom. */
+  const layoutInsets = useMemo<EdgeInsets>(
+    () => ({
+      top: safeAreaInsets.top > 0 ? safeAreaInsets.top : Platform.OS === 'ios' ? 59 : safeAreaInsets.top,
+      bottom:
+        safeAreaInsets.bottom > 0 ? safeAreaInsets.bottom : Platform.OS === 'ios' ? 34 : safeAreaInsets.bottom,
+      left: safeAreaInsets.left,
+      right: safeAreaInsets.right,
+    }),
+    [safeAreaInsets]
+  );
   const add = useSubscriptionsStore((s) => s.add);
 
   const [step, setStep] = useState<'picker' | 'form'>('picker');
@@ -123,21 +74,34 @@ export function AddSubscriptionScreen({ navigation }: Props) {
   // Form state
   const [serviceName, setServiceName] = useState('');
   const [domain, setDomain] = useState('');
-  const [category, setCategory] = useState<Subscription['category']>('Other');
+  const [category, setCategory] = useState<string>('Other');
+  const [categories, setCategories] = useState<string[]>(() => [...BASE_CATEGORIES]);
+  const [categorySearch, setCategorySearch] = useState('');
+  const [newCategory, setNewCategory] = useState('');
+  const [sheet, setSheet] = useState<SheetType>(null);
   const [price, setPrice] = useState('');
   const [currency, setCurrency] = useState<'USD' | 'EUR' | 'GEL'>('USD');
   const [billingCycle, setBillingCycle] = useState<Subscription['billingCycle']>('monthly');
   const [nextCharge, setNextCharge] = useState<Date>(() => {
     const d = new Date(); d.setDate(d.getDate() + 30); return d;
   });
+  /** First charge date — drives generated billing history for MoM comparisons */
+  const [subscriptionStartDate, setSubscriptionStartDate] = useState<Date>(() => {
+    const d = new Date(); d.setDate(d.getDate() + 30); return d;
+  });
+  /** Once user edits "Subscription start", we stop auto-syncing it from "Payment date". */
+  const subscriptionStartTouchedRef = useRef(false);
   const [isTrial, setIsTrial] = useState(false);
   const [list, setList] = useState('Personal');
   const [paymentMethod, setPaymentMethod] = useState('');
   const [reminderEnabled, setReminderEnabled] = useState(true);
   const [reminderDays, setReminderDays] = useState(1);
+  const [reminderTime, setReminderTime] = useState('09:00');
   const [url, setUrl] = useState('');
   const [notes, setNotes] = useState('');
   const [showDatePicker, setShowDatePicker] = useState(false);
+  const [showStartDatePicker, setShowStartDatePicker] = useState(false);
+  const [showReminderTimePicker, setShowReminderTimePicker] = useState(false);
 
   // Debounced brand search — fires 350 ms after user stops typing
   useEffect(() => {
@@ -159,14 +123,27 @@ export function AddSubscriptionScreen({ navigation }: Props) {
     };
   }, [search]);
 
+  // Keep first charge in sync with next payment until the user explicitly sets "Subscription start"
+  useEffect(() => {
+    if (!subscriptionStartTouchedRef.current) {
+      setSubscriptionStartDate(new Date(nextCharge.getTime()));
+    }
+  }, [nextCharge]);
+
   // Local filter of popular services (only when no API results)
   const filteredPopular = useMemo(() => {
     if (search.trim()) return [];
-    return POPULAR;
+    return POPULAR_SERVICES_BY_SECTION;
   }, [search]);
 
+  const filteredCategories = useMemo(() => {
+    const q = categorySearch.trim().toLowerCase();
+    if (!q) return categories;
+    return categories.filter((c) => c.toLowerCase().includes(q));
+  }, [categories, categorySearch]);
+
   function selectService(t: ServiceTemplate | BrandResult) {
-    Haptics.selectionAsync();
+    void hapticSelection();
     setServiceName(t.name);
     setDomain(t.domain);
     setCategory('category' in t ? t.category : 'Other');
@@ -174,7 +151,7 @@ export function AddSubscriptionScreen({ navigation }: Props) {
   }
 
   function startCustom() {
-    Haptics.selectionAsync();
+    void hapticSelection();
     setServiceName(search.trim() ? search.trim() : '');
     setDomain('');
     setCategory('Other');
@@ -187,20 +164,22 @@ export function AddSubscriptionScreen({ navigation }: Props) {
       Alert.alert('Missing info', 'Enter a service name and a valid price.');
       return;
     }
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    void hapticImpactMedium();
     add({
       serviceName: serviceName.trim(),
       domain: domain.trim() || undefined,
-      category,
+      category: (category as Subscription['category']) ?? 'Other',
       price: numPrice,
       currency,
       billingCycle,
+      subscriptionStartDate: toLocalDateString(subscriptionStartDate),
       nextChargeDate: nextCharge.toISOString(),
       isTrial,
       list,
       paymentMethod: paymentMethod.trim() || undefined,
       reminderEnabled,
       reminderDaysBefore: reminderDays,
+      reminderTime,
       url: url.trim() || undefined,
       description: notes.trim() || undefined,
       status: isTrial ? 'trial' : 'active',
@@ -208,20 +187,48 @@ export function AddSubscriptionScreen({ navigation }: Props) {
     navigation.goBack();
   }
 
+  function addCategory() {
+    const value = newCategory.trim();
+    if (!value) return;
+    if (!categories.includes(value)) {
+      setCategories((prev) => [value, ...prev]);
+    }
+    setCategory(value);
+    setNewCategory('');
+    setSheet(null);
+  }
+
+  async function handleReminderToggle(value: boolean) {
+    if (!value) {
+      setReminderEnabled(false);
+      return;
+    }
+    const granted = await requestNotificationPermissions();
+    if (!granted) {
+      Alert.alert(
+        'Enable notifications',
+        'Allow notifications to receive upcoming charge reminders.',
+        [
+          { text: 'Cancel', style: 'cancel' },
+          { text: 'Open Settings', onPress: () => Linking.openSettings() },
+        ]
+      );
+      setReminderEnabled(false);
+      return;
+    }
+    setReminderEnabled(true);
+  }
+
   // ── Service Picker ────────────────────────────────────────────────────────
   if (step === 'picker') {
     const hasQuery = search.trim().length > 0;
 
     return (
-      <SafeAreaView style={s.safe} edges={['top', 'left', 'right', 'bottom']}>
-        {/* Nav */}
-        <View style={s.navBar}>
-          <Pressable onPress={() => navigation.goBack()} style={({ pressed }) => [s.navCancelBtn, pressed && s.pressed]}>
-            <Text style={s.navCancelText}>Cancel</Text>
-          </Pressable>
-          <Text style={s.navTitle}>Add Subscription</Text>
-          <View style={{ width: 70 }} />
-        </View>
+      <AppScreen edges={['top', 'left', 'right', 'bottom']}>
+        <ScreenHeader
+          title="Add Subscription"
+          left={<HeaderTextAction label="Cancel" onPress={() => navigation.goBack()} />}
+        />
 
         {/* Search bar — always at top */}
         <View style={s.searchTopWrap}>
@@ -241,19 +248,28 @@ export function AddSubscriptionScreen({ navigation }: Props) {
               returnKeyType="search"
             />
             {search.length > 0 && (
-              <Pressable onPress={() => setSearch('')} hitSlop={8}>
+              <Pressable
+                onPress={() => {
+                  void hapticSelection();
+                  setSearch('');
+                }}
+                hitSlop={8}
+              >
                 <Ionicons name="close-circle" size={16} color={DIM} />
               </Pressable>
             )}
           </View>
         </View>
 
-        <ScrollView
-          contentContainerStyle={{ paddingBottom: 40 }}
-          keyboardShouldPersistTaps="handled"
-          showsVerticalScrollIndicator={false}
-          keyboardDismissMode="on-drag"
-        >
+        {/* flex:1 wrapper + ScrollView flex:1 so the list gets a bounded height and actually scrolls */}
+        <View style={s.pickerScrollWrap}>
+          <ScrollView
+            style={s.pickerScroll}
+            contentContainerStyle={s.pickerScrollContent}
+            keyboardShouldPersistTaps="handled"
+            showsVerticalScrollIndicator={false}
+            keyboardDismissMode="on-drag"
+          >
           {/* ── Brand Search results ─────────────────────────────────────── */}
           {hasQuery && (
             <>
@@ -349,26 +365,23 @@ export function AddSubscriptionScreen({ navigation }: Props) {
               ))}
             </>
           )}
-        </ScrollView>
-      </SafeAreaView>
+          </ScrollView>
+        </View>
+      </AppScreen>
     );
   }
 
   // ── Form ──────────────────────────────────────────────────────────────────
   return (
-    <SafeAreaView style={s.safe} edges={['top', 'left', 'right', 'bottom']}>
+    <AppScreen edges={['top', 'left', 'right', 'bottom']}>
+      <ScreenHeader
+        title="Add Subscription"
+        left={<IconCircleButton icon="chevron-back" onPress={() => setStep('picker')} />}
+        right={<AppButton label="Save" onPress={handleSave} />}
+      />
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>
-        <View style={s.navBar}>
-          <Pressable onPress={() => setStep('picker')} style={({ pressed }) => [s.navBackBtn, pressed && s.pressed]}>
-            <Ionicons name="chevron-back" size={20} color={INK} />
-          </Pressable>
-          <Text style={s.navTitle}>Add Subscription</Text>
-          <Pressable onPress={handleSave} style={({ pressed }) => [s.saveBtn, pressed && s.pressed]}>
-            <Text style={s.saveBtnText}>Save</Text>
-          </Pressable>
-        </View>
-
         <ScrollView
+          style={s.formScroll}
           contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 50 }}
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
@@ -394,7 +407,10 @@ export function AddSubscriptionScreen({ navigation }: Props) {
             </View>
             <View style={s.priceRow}>
               <Pressable
-                onPress={() => setCurrency(CURRENCIES[(CURRENCIES.indexOf(currency) + 1) % CURRENCIES.length])}
+                onPress={() => {
+                  void hapticSelection();
+                  setSheet('currency');
+                }}
                 style={s.currencyPill}
               >
                 <Text style={s.currencyPillText}>{CURRENCY_SYMBOLS[currency]}</Text>
@@ -410,33 +426,46 @@ export function AddSubscriptionScreen({ navigation }: Props) {
             </View>
           </View>
 
-          {/* Payment details */}
+          {/* Payment details — next payment first; subscription start follows (defaults match until user changes it) */}
           <View style={[s.card, { marginTop: 14 }]}>
             <FormRow label="Payment date">
               <Pressable
-                onPress={() => setShowDatePicker(true)}
+                onPress={() => {
+                  void hapticSelection();
+                  setShowDatePicker(true);
+                }}
                 style={({ pressed }) => [s.datePill, pressed && s.pressed]}
               >
                 <Text style={s.datePillText}>
                   {nextCharge.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}
                 </Text>
               </Pressable>
-              {showDatePicker && (
-                <DateTimePicker
-                  value={nextCharge}
-                  mode="date"
-                  onChange={(_e: unknown, d?: Date) => { setShowDatePicker(false); if (d) setNextCharge(d); }}
-                />
-              )}
             </FormRow>
+            <Text style={s.startHint}>When your next charge is due.</Text>
             <View style={s.sep} />
-            <FormRow label="Billing Cycle">
-              <Pressable
-                onPress={() => setBillingCycle(CYCLE_OPTIONS[(CYCLE_OPTIONS.indexOf(billingCycle) + 1) % CYCLE_OPTIONS.length])}
-                style={({ pressed }) => pressed && s.pressed}
-              >
-                <Text style={s.valueText}>{CYCLE_LABELS[billingCycle]}</Text>
-              </Pressable>
+            <FormRow
+              label="Subscription start"
+              onPress={() => {
+                void hapticSelection();
+                setShowStartDatePicker(true);
+              }}
+            >
+              <Text style={s.valueText}>
+                {subscriptionStartDate.toLocaleDateString('en-GB', {
+                  day: 'numeric',
+                  month: 'short',
+                  year: 'numeric',
+                })}
+              </Text>
+              <Ionicons name="chevron-forward" size={14} color={DIM} />
+            </FormRow>
+            <Text style={s.startHint}>
+              First charge or member since — set earlier if you used this service long before installing the app. Matches payment date until you change it.
+            </Text>
+            <View style={s.sep} />
+            <FormRow label="Billing Cycle" onPress={() => setSheet('billingCycle')}>
+              <Text style={s.valueText}>{BILLING_CYCLE_LABELS[billingCycle]}</Text>
+              <Ionicons name="chevron-forward" size={14} color={DIM} />
             </FormRow>
             <View style={s.sep} />
             <FormRow label="Free Trial">
@@ -451,24 +480,14 @@ export function AddSubscriptionScreen({ navigation }: Props) {
 
           {/* List / Category / Payment */}
           <View style={[s.card, { marginTop: 10 }]}>
-            <FormRow label="List">
-              <Pressable
-                onPress={() => setList(list === 'Personal' ? 'Business' : 'Personal')}
-                style={({ pressed }) => [s.pickerTap, pressed && s.pressed]}
-              >
-                <Text style={s.valueText}>{list}</Text>
-                <Ionicons name="chevron-expand" size={13} color={DIM} />
-              </Pressable>
+            <FormRow label="List" onPress={() => setSheet('list')}>
+              <Text style={s.valueText}>{list}</Text>
+              <Ionicons name="chevron-forward" size={14} color={DIM} />
             </FormRow>
             <View style={s.sep} />
-            <FormRow label="Category">
-              <Pressable
-                onPress={() => setCategory(CATEGORIES[(CATEGORIES.indexOf(category) + 1) % CATEGORIES.length])}
-                style={({ pressed }) => [s.pickerTap, pressed && s.pressed]}
-              >
-                <Text style={s.valueText}>{category}</Text>
-                <Ionicons name="chevron-expand" size={13} color={DIM} />
-              </Pressable>
+            <FormRow label="Category" onPress={() => setSheet('category')}>
+              <Text style={s.valueText}>{category}</Text>
+              <Ionicons name="chevron-forward" size={14} color={DIM} />
             </FormRow>
             <View style={s.sep} />
             <FormRow label="Payment Method">
@@ -489,7 +508,7 @@ export function AddSubscriptionScreen({ navigation }: Props) {
             <FormRow label="Reminder">
               <Switch
                 value={reminderEnabled}
-                onValueChange={setReminderEnabled}
+                onValueChange={handleReminderToggle}
                 trackColor={{ false: '#E0E0E0', true: GREEN }}
                 thumbColor="#fff"
               />
@@ -497,16 +516,27 @@ export function AddSubscriptionScreen({ navigation }: Props) {
             {reminderEnabled && (
               <>
                 <View style={s.sep} />
-                <FormRow label="Notify me">
+                <FormRow label="Notify me" onPress={() => setSheet('notify')}>
+                  <Text style={s.valueText}>
+                    {reminderDays === 0
+                      ? 'Same day'
+                      : reminderDays === 7
+                        ? '1 week before'
+                        : `${reminderDays} day${reminderDays > 1 ? 's' : ''} before`}
+                  </Text>
+                  <Ionicons name="chevron-forward" size={14} color={DIM} />
+                </FormRow>
+                <View style={s.sep} />
+                <FormRow label="Time">
                   <Pressable
                     onPress={() => {
-                      const opts = [1, 2, 3, 7];
-                      setReminderDays(opts[(opts.indexOf(reminderDays) + 1) % opts.length]);
+                      void hapticSelection();
+                      setShowReminderTimePicker(true);
                     }}
                     style={({ pressed }) => [s.pickerTap, pressed && s.pressed]}
                   >
-                    <Text style={s.valueText}>{reminderDays} day{reminderDays > 1 ? 's' : ''} before</Text>
-                    <Ionicons name="chevron-expand" size={13} color={DIM} />
+                    <Text style={s.valueText}>{reminderTime}</Text>
+                    <Ionicons name="chevron-forward" size={13} color={DIM} />
                   </Pressable>
                 </FormRow>
               </>
@@ -541,7 +571,191 @@ export function AddSubscriptionScreen({ navigation }: Props) {
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
-    </SafeAreaView>
+
+        <AppActionSheet
+          visible={sheet !== null}
+          onClose={() => setSheet(null)}
+          safeAreaInsets={layoutInsets}
+        >
+          {sheet === 'currency' && (
+            <View style={s.sheetRoot}>
+              <Text style={s.sheetTitle}>Currency</Text>
+              <ScrollView style={s.sheetScroll} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator>
+                {ADD_SUBSCRIPTION_CURRENCIES.map((item) => (
+                  <SheetOption
+                    key={item}
+                    label={`${item} (${CURRENCY_SYMBOLS[item]})`}
+                    selected={currency === item}
+                    onPress={() => {
+                      setCurrency(item);
+                      setSheet(null);
+                    }}
+                  />
+                ))}
+              </ScrollView>
+            </View>
+          )}
+
+          {sheet === 'billingCycle' && (
+            <View style={s.sheetRoot}>
+              <Text style={s.sheetTitle}>Billing Cycle</Text>
+              <ScrollView style={s.sheetScroll} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator>
+                {BILLING_CYCLE_OPTIONS.map((c) => (
+                  <SheetOption
+                    key={c}
+                    label={BILLING_CYCLE_LABELS[c]}
+                    selected={billingCycle === c}
+                    onPress={() => {
+                      setBillingCycle(c);
+                      setSheet(null);
+                    }}
+                  />
+                ))}
+              </ScrollView>
+            </View>
+          )}
+
+          {sheet === 'list' && (
+            <View style={s.sheetRoot}>
+              <Text style={s.sheetTitle}>Select List</Text>
+              <ScrollView style={s.sheetScroll} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator>
+                {['Personal', 'Business'].map((item) => (
+                  <SheetOption
+                    key={item}
+                    label={item}
+                    selected={list === item}
+                    onPress={() => {
+                      setList(item);
+                      setSheet(null);
+                    }}
+                  />
+                ))}
+              </ScrollView>
+            </View>
+          )}
+
+          {sheet === 'category' && (
+            <View style={s.sheetRoot}>
+              <Text style={s.sheetTitle}>Category</Text>
+              <TextInput
+                value={categorySearch}
+                onChangeText={setCategorySearch}
+                placeholder="Search category"
+                placeholderTextColor={DIM}
+                style={s.sheetSearch}
+              />
+              <ScrollView style={s.sheetScroll} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator>
+                {filteredCategories.map((item) => (
+                  <SheetOption
+                    key={item}
+                    label={item}
+                    selected={category === item}
+                    onPress={() => {
+                      setCategory(item);
+                      setSheet(null);
+                    }}
+                  />
+                ))}
+              </ScrollView>
+              <View style={s.inlineEditor}>
+                <Text style={s.inlineLabel}>Add new category</Text>
+                <View style={{ flexDirection: 'row', gap: 8 }}>
+                  <TextInput
+                    value={newCategory}
+                    onChangeText={setNewCategory}
+                    placeholder="New category"
+                    placeholderTextColor={DIM}
+                    style={[s.sheetTextInput, { flex: 1 }]}
+                  />
+                  <Pressable
+                    onPress={() => {
+                      void hapticSelection();
+                      addCategory();
+                    }}
+                    style={s.smallActionBtn}
+                  >
+                    <Text style={s.smallActionText}>Add</Text>
+                  </Pressable>
+                </View>
+              </View>
+            </View>
+          )}
+
+          {sheet === 'notify' && (
+            <View style={s.sheetRoot}>
+              <Text style={s.sheetTitle}>Notification Settings</Text>
+              <ScrollView style={s.sheetScroll} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator>
+                {[
+                  { days: 0, label: 'Same day' },
+                  { days: 1, label: '1 day before' },
+                  { days: 3, label: '3 days before' },
+                  { days: 7, label: '1 week before' },
+                  { days: -1, label: 'Custom' },
+                ].map((item) => (
+                  <SheetOption
+                    key={item.label}
+                    label={item.label}
+                    selected={
+                      item.days === -1 ? ![0, 1, 3, 7].includes(reminderDays) : reminderDays === item.days
+                    }
+                    onPress={() => {
+                      if (item.days === -1) {
+                        if ([0, 1, 3, 7].includes(reminderDays)) setReminderDays(2);
+                      } else {
+                        setReminderDays(item.days);
+                      }
+                    }}
+                  />
+                ))}
+                {![0, 1, 3, 7].includes(reminderDays) && (
+                  <View style={s.inlineEditor}>
+                    <Text style={s.inlineLabel}>Custom days before</Text>
+                    <TextInput
+                      value={String(reminderDays)}
+                      onChangeText={(t) => setReminderDays(Math.max(1, Number(t.replace(/\D/g, '') || 1)))}
+                      keyboardType="number-pad"
+                      style={s.sheetTextInput}
+                    />
+                  </View>
+                )}
+              </ScrollView>
+              <Pressable
+                onPress={() => {
+                  void hapticSelection();
+                  setSheet(null);
+                }}
+                style={s.sheetDoneBtn}
+              >
+                <Text style={s.sheetDoneText}>Confirm</Text>
+              </Pressable>
+            </View>
+          )}
+        </AppActionSheet>
+
+        <DatePickerModal
+          visible={showDatePicker}
+          value={nextCharge}
+          onClose={() => setShowDatePicker(false)}
+          onSelect={(d) => setNextCharge(d)}
+          title="Payment date"
+        />
+        <DatePickerModal
+          visible={showStartDatePicker}
+          value={subscriptionStartDate}
+          onClose={() => setShowStartDatePicker(false)}
+          onSelect={(d) => {
+            subscriptionStartTouchedRef.current = true;
+            setSubscriptionStartDate(d);
+          }}
+          title="Subscription start"
+        />
+        <TimePickerModal
+          visible={showReminderTimePicker}
+          value={reminderTime}
+          onClose={() => setShowReminderTimePicker(false)}
+          onSelect={(hhmm) => setReminderTime(hhmm)}
+        />
+    </AppScreen>
   );
 }
 
@@ -580,48 +794,84 @@ function PickerAction({
   );
 }
 
-function FormRow({ label, children }: { label: string; children: React.ReactNode }) {
+function FormRow({
+  label,
+  children,
+  onPress,
+}: {
+  label: string;
+  children: React.ReactNode;
+  onPress?: () => void;
+}) {
+  if (!onPress) {
+    return (
+      <View style={s.formRow}>
+        <Text style={s.formRowLabel}>{label}</Text>
+        <View style={s.formRowRight}>{children}</View>
+      </View>
+    );
+  }
+
   return (
-    <View style={s.formRow}>
+    <Pressable
+      onPress={() => {
+        void hapticSelection();
+        onPress();
+      }}
+      style={({ pressed }) => [s.formRow, pressed && s.pressed]}
+    >
       <Text style={s.formRowLabel}>{label}</Text>
       <View style={s.formRowRight}>{children}</View>
-    </View>
+    </Pressable>
+  );
+}
+
+function SheetOption({
+  label,
+  selected,
+  onPress,
+}: {
+  label: string;
+  selected: boolean;
+  onPress: () => void;
+}) {
+  return (
+    <Pressable
+      onPress={() => {
+        void hapticSelection();
+        onPress();
+      }}
+      style={({ pressed }) => [s.sheetOption, pressed && s.pressed]}
+    >
+      <Text style={s.sheetOptionText}>{label}</Text>
+      {selected ? (
+        <Ionicons name="checkmark-circle" size={18} color={GREEN} />
+      ) : (
+        <Ionicons name="chevron-forward" size={14} color={DIM} />
+      )}
+    </Pressable>
   );
 }
 
 // ─── Styles ────────────────────────────────────────────────────────────────────
 const s = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: BG },
   pressed: { opacity: 0.75 },
-
-  navBar: {
-    flexDirection: 'row', alignItems: 'center',
-    paddingHorizontal: 16, paddingVertical: 12,
-    borderBottomWidth: 1, borderBottomColor: SEP,
-    backgroundColor: BG,
-  },
-  navCancelBtn: { width: 70 },
-  navCancelText: { fontSize: 16, color: INK, fontWeight: '400' },
-  navBackBtn: {
-    width: 34, height: 34, borderRadius: 17,
-    backgroundColor: CARD, alignItems: 'center', justifyContent: 'center',
-  },
-  navTitle: { flex: 1, textAlign: 'center', fontSize: 17, fontWeight: '700', color: INK },
-  saveBtn: {
-    paddingVertical: 8, paddingHorizontal: 16,
-    borderRadius: 20, backgroundColor: INK,
-  },
-  saveBtnText: { fontSize: 14, fontWeight: '700', color: '#FFFFFF' },
 
   sectionLabel: {
     fontSize: 12, fontWeight: '700', color: DIM,
     marginTop: 20, marginBottom: 8, marginHorizontal: 16,
     textTransform: 'uppercase', letterSpacing: 0.5,
   },
-  card: { backgroundColor: CARD, borderRadius: 22 },
+  card: { backgroundColor: CARD, borderRadius: radius.card },
   sep: { height: 1, backgroundColor: SEP, marginHorizontal: 16 },
 
-  // Picker
+  // Picker — bounded scroll area (see screen structure above)
+  pickerScrollWrap: { flex: 1 },
+  pickerScroll: { flex: 1 },
+  pickerScrollContent: { paddingBottom: 40 },
+  /** Form step: same bounded-height scroll as picker */
+  formScroll: { flex: 1 },
+
   actionRow: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 14, gap: 12 },
   actionIcon: {
     width: 38, height: 38, borderRadius: 11,
@@ -688,4 +938,67 @@ const s = StyleSheet.create({
     textTransform: 'uppercase', letterSpacing: 0.5,
   },
   textAreaInput: { fontSize: 15, color: INK, paddingHorizontal: 16, paddingVertical: 14 },
+  startHint: {
+    fontSize: 12,
+    fontWeight: '500',
+    color: DIM,
+    paddingHorizontal: 16,
+    marginTop: 4,
+    marginBottom: 4,
+    lineHeight: 16,
+  },
+
+  sheetRoot: { flex: 1, minHeight: 0 },
+  sheetScroll: { flex: 1, minHeight: 0 },
+  sheetTitle: { ...sheetTypography.title },
+  sheetOption: {
+    minHeight: 44,
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: BG,
+    marginBottom: 8,
+  },
+  sheetOptionText: { ...sheetTypography.option },
+  sheetSearch: {
+    ...sheetTypography.search,
+    borderRadius: 12,
+    backgroundColor: BG,
+    paddingHorizontal: 12,
+    paddingVertical: 12,
+    marginBottom: 10,
+  },
+  inlineEditor: {
+    marginTop: 8,
+    padding: 12,
+    borderRadius: 12,
+    backgroundColor: BG,
+    gap: 8,
+  },
+  inlineLabel: { ...sheetTypography.inlineLabel },
+  sheetTextInput: {
+    borderRadius: 10,
+    backgroundColor: CARD,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    fontSize: 14,
+    color: INK,
+  },
+  smallActionBtn: {
+    borderRadius: 10,
+    backgroundColor: INK,
+    paddingHorizontal: 12,
+    justifyContent: 'center',
+  },
+  smallActionText: { color: '#fff', fontSize: 13, fontWeight: '700' },
+  sheetDoneBtn: {
+    marginTop: 12,
+    backgroundColor: INK,
+    borderRadius: 12,
+    alignItems: 'center',
+    paddingVertical: 12,
+  },
+  sheetDoneText: { ...sheetTypography.done },
 });

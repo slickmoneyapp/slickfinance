@@ -29,6 +29,11 @@ export type Subscription = {
   currency: CurrencyCode;
   billingCycle: BillingCycle;
   customCycleDays?: number;
+  /**
+   * First day this subscription started charging (YYYY-MM-DD, local calendar).
+   * Used to generate billing history for month-over-month comparisons.
+   */
+  subscriptionStartDate: string;
   nextChargeDate: string; // ISO
   description?: string;
   url?: string;
@@ -39,7 +44,8 @@ export type Subscription = {
   isTrial: boolean;
   reminderEnabled: boolean;
   reminderDaysBefore: number;
-  notificationId?: string;
+  reminderTime: string; // "09:00"
+  notificationIds?: string[];
   billingHistory: BillingHistoryEntry[];
   createdAt: string; // ISO
   updatedAt: string; // ISO

@@ -1,23 +1,35 @@
 import { StatusBar } from 'expo-status-bar';
-import React from 'react';
-import { Platform, StyleSheet, View } from 'react-native';
+import React, { useEffect } from 'react';
+import { Platform, StyleSheet } from 'react-native';
+import { useFonts, BricolageGrotesque_800ExtraBold } from '@expo-google-fonts/bricolage-grotesque';
 import { NavigationContainer } from '@react-navigation/native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
-import { BlurView } from 'expo-blur';
 import { Ionicons } from '@expo/vector-icons';
-import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import { HomeScreen } from './src/screens/HomeScreen';
+import { HomeStackNavigator } from './src/navigation/HomeStack';
+import { getHomeNativeHeaderOptions } from './src/navigation/homeStackOptions';
 import { BudgetScreen } from './src/screens/BudgetScreen';
 import { SubscriptionsScreen } from './src/screens/SubscriptionsScreen';
 import { InvestScreen } from './src/screens/InvestScreen';
 import { SettingsScreen } from './src/screens/SettingsScreen';
+import {
+  ENABLE_BUDGET_TAB,
+  ENABLE_INVEST_TAB,
+  USE_FIGMA_SINGLE_PAGE_NAV,
+} from './src/config/featureFlags';
 import { AddSubscriptionScreen } from './src/screens/AddSubscriptionScreen';
 import { SubscriptionDetailScreen } from './src/screens/SubscriptionDetailScreen';
 import { EditSubscriptionScreen } from './src/screens/EditSubscriptionScreen';
 import { useNotificationSync } from './src/hooks/useNotificationSync';
+import { prefetchTabBackground } from './src/assets/tabBackground';
+import { getTabBarIconName } from './src/navigation/tabBarIcons';
 
+/**
+ * Tab routes (Budget / Invest kept for types + future tabs; hidden from bar via featureFlags).
+ */
 export type RootTabsParamList = {
   Home: undefined;
   Budget: undefined;
@@ -28,7 +40,14 @@ export type RootTabsParamList = {
 
 const Tabs = createBottomTabNavigator<RootTabsParamList>();
 export type RootStackParamList = {
+  /** Classic app shell (bottom tabs) */
   Tabs: undefined;
+  /** Figma-style flat stack — same screens, no tab bar */
+  Subscriptions: undefined;
+  Home: undefined;
+  Settings: undefined;
+  Budget: undefined;
+  Invest: undefined;
   AddSubscription: undefined;
   SubscriptionDetail: { subscriptionId: string };
   EditSubscription: { subscriptionId: string };
@@ -36,16 +55,44 @@ export type RootStackParamList = {
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
 function AppInner() {
+  const [fontsLoaded] = useFonts({ BricolageGrotesque_800ExtraBold });
   useNotificationSync();
+  if (!fontsLoaded) return null;
+
   return (
     <>
       <StatusBar style="dark" />
-      <Stack.Navigator>
-        <Stack.Screen name="Tabs" component={RootTabs} options={{ headerShown: false }} />
+      <Stack.Navigator
+        initialRouteName={USE_FIGMA_SINGLE_PAGE_NAV ? 'Subscriptions' : 'Tabs'}
+      >
+        {USE_FIGMA_SINGLE_PAGE_NAV ? (
+          <>
+            <Stack.Screen name="Subscriptions" component={SubscriptionsScreen} options={{ headerShown: false }} />
+            <Stack.Screen name="Home" component={HomeScreen} options={getHomeNativeHeaderOptions()} />
+            <Stack.Screen name="Settings" component={SettingsScreen} options={{ headerShown: false }} />
+            {ENABLE_BUDGET_TAB ? (
+              <Stack.Screen name="Budget" component={BudgetScreen} options={{ headerShown: false }} />
+            ) : null}
+            {ENABLE_INVEST_TAB ? (
+              <Stack.Screen name="Invest" component={InvestScreen} options={{ headerShown: false }} />
+            ) : null}
+          </>
+        ) : (
+          <Stack.Screen name="Tabs" component={RootTabs} options={{ headerShown: false }} />
+        )}
         <Stack.Screen
           name="AddSubscription"
           component={AddSubscriptionScreen}
-          options={{ presentation: 'modal', headerShown: false }}
+          options={{
+            /**
+             * `formSheet` ties vertical scrolling to iOS sheet detents (“pushing up” instead of scrolling the list).
+             * Full-screen modal behaves like a normal screen so the picker list ScrollView scrolls reliably.
+             */
+            presentation: Platform.OS === 'ios' ? 'fullScreenModal' : 'modal',
+            headerShown: false,
+            animation: 'slide_from_bottom',
+            contentStyle: { flex: 1 },
+          }}
         />
         <Stack.Screen
           name="SubscriptionDetail"
@@ -55,7 +102,12 @@ function AppInner() {
         <Stack.Screen
           name="EditSubscription"
           component={EditSubscriptionScreen}
-          options={{ presentation: 'modal', headerShown: false }}
+          options={{
+            presentation: Platform.OS === 'ios' ? 'fullScreenModal' : 'modal',
+            headerShown: false,
+            animation: 'slide_from_bottom',
+            contentStyle: { flex: 1 },
+          }}
         />
       </Stack.Navigator>
     </>
@@ -63,6 +115,13 @@ function AppInner() {
 }
 
 export default function App() {
+  /** Start warming the tab background asset as early as possible (runs in parallel with font load). */
+  useEffect(() => {
+    prefetchTabBackground().catch(() => {
+      /* non-fatal — expo-image still decodes from bundle */
+    });
+  }, []);
+
   return (
     <SafeAreaProvider>
       <NavigationContainer>
@@ -73,11 +132,6 @@ export default function App() {
 }
 
 function RootTabs() {
-  const insets = useSafeAreaInsets();
-  const bottomGap = Math.max(10, insets.bottom);
-  const floatingBottom = 8;
-  const barHeight = 62 + bottomGap;
-
   return (
     <Tabs.Navigator
       screenOptions={({ route }) => ({
@@ -85,34 +139,18 @@ function RootTabs() {
         tabBarShowLabel: true,
         tabBarActiveTintColor: '#CB30E0',
         tabBarInactiveTintColor: '#8C8C8C',
-        tabBarLabelStyle: { fontSize: 10, fontWeight: '600' },
-        tabBarStyle: [styles.tabBar, { bottom: floatingBottom, height: barHeight, paddingBottom: bottomGap - 2 }],
+        tabBarLabelStyle: { fontSize: 11, fontWeight: '600' },
+        tabBarStyle: styles.tabBar,
         tabBarItemStyle: styles.tabItem,
-        tabBarBackground: () => (
-          <View style={StyleSheet.absoluteFill}>
-            <BlurView intensity={Platform.OS === 'ios' ? 55 : 35} tint="light" style={StyleSheet.absoluteFill} />
-            <View style={styles.tabBarTint} />
-          </View>
+        tabBarIcon: ({ color, size, focused }) => (
+          <Ionicons name={getTabBarIconName(route.name, focused)} size={size} color={color} />
         ),
-        tabBarIcon: ({ color, size, focused }) => {
-          const icon =
-            route.name === 'Home'
-              ? focused ? 'home' : 'home-outline'
-              : route.name === 'Budget'
-                ? focused ? 'pie-chart' : 'pie-chart-outline'
-                : route.name === 'Subscriptions'
-                  ? focused ? 'card' : 'card-outline'
-                  : route.name === 'Settings'
-                    ? focused ? 'settings' : 'settings-outline'
-                    : focused ? 'trending-up' : 'trending-up-outline';
-          return <Ionicons name={icon as any} size={size} color={color} />;
-        },
       })}
     >
-      <Tabs.Screen name="Home" component={HomeScreen} />
-      <Tabs.Screen name="Budget" component={BudgetScreen} />
+      <Tabs.Screen name="Home" component={HomeStackNavigator} />
+      {ENABLE_BUDGET_TAB ? <Tabs.Screen name="Budget" component={BudgetScreen} /> : null}
       <Tabs.Screen name="Subscriptions" component={SubscriptionsScreen} />
-      <Tabs.Screen name="Invest" component={InvestScreen} />
+      {ENABLE_INVEST_TAB ? <Tabs.Screen name="Invest" component={InvestScreen} /> : null}
       <Tabs.Screen name="Settings" component={SettingsScreen} />
     </Tabs.Navigator>
   );
@@ -120,26 +158,14 @@ function RootTabs() {
 
 const styles = StyleSheet.create({
   tabBar: {
-    position: 'absolute',
-    left: 20,
-    right: 20,
-    borderRadius: 30,
-    borderTopWidth: 0,
-    backgroundColor: 'transparent',
-    overflow: 'hidden',
-    // keep it above the home indicator area; height/padding set dynamically
-    shadowColor: '#000',
-    shadowOpacity: 0.1,
-    shadowRadius: 18,
-    shadowOffset: { width: 0, height: 12 },
-    elevation: 10,
-  },
-  tabBarTint: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(255,255,255,0.65)',
+    backgroundColor: '#FFFFFF',
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: '#E5E5E5',
+    elevation: 0,
+    shadowOpacity: 0,
   },
   tabItem: {
-    paddingTop: 6,
-    paddingBottom: 6,
+    paddingTop: 4,
+    paddingBottom: 4,
   },
 });
