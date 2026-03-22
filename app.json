@@ -7,7 +7,7 @@
     "icon": "./appicon.png",
     "userInterfaceStyle": "light",
     "splash": {
-      "image": "./appicon.png",
+      "image": "./splash.png",
       "resizeMode": "contain",
       "backgroundColor": "#ffffff"
     },

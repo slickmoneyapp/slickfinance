@@ -1,5 +1,6 @@
 import React, { useLayoutEffect } from 'react';
 import { Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { CompanyLogo } from '../components/CompanyLogo';
 import type { RootStackParamList } from '../../App';
@@ -113,38 +114,52 @@ export function HomeScreen({ navigation }: Props) {
         <Pressable
           onPress={() => {
             void hapticSelection();
-            (navigation as any).navigate('Subscriptions');
+            (navigation as any).navigate(subs.length === 0 ? 'AddSubscription' : 'Subscriptions');
           }}
           style={({ pressed }) => [styles.card, pressed && styles.pressed]}
         >
-          <Text style={styles.cardTitle}>Subscriptions</Text>
-          <View style={styles.amountRow}>
-            <AnimatedMoneyAmount
-              amount={subsMonthly}
-              currency={currency as any}
-              style={styles.cardAmount}
-              countFrom={subsMonthlyCountFrom}
-              onCountComplete={onSubsMonthlyCountComplete}
-            />
-            <Text style={styles.amountSub}>/ month</Text>
-          </View>
-          <Text style={styles.cardFoot}>{subsCount} active</Text>
+          {subs.length === 0 ? (
+            <>
+              <Text style={styles.cardTitle}>Subscriptions</Text>
+              <View style={styles.emptyCardBody}>
+                <Ionicons name="receipt-outline" size={28} color="rgba(11,8,3,0.3)" />
+                <Text style={styles.emptyCardText}>
+                  Tap to add your first subscription
+                </Text>
+              </View>
+            </>
+          ) : (
+            <>
+              <Text style={styles.cardTitle}>Subscriptions</Text>
+              <View style={styles.amountRow}>
+                <AnimatedMoneyAmount
+                  amount={subsMonthly}
+                  currency={currency as any}
+                  style={styles.cardAmount}
+                  countFrom={subsMonthlyCountFrom}
+                  onCountComplete={onSubsMonthlyCountComplete}
+                />
+                <Text style={styles.amountSub}>/ month</Text>
+              </View>
+              <Text style={styles.cardFoot}>{subsCount} active</Text>
 
-          {top3.length > 0 ? (
-            <View style={styles.logoStack} pointerEvents="none">
-              {top3.map((s, idx) => (
-                <LogoBubble key={s.id} overlap={idx !== 0}>
-                  {s.domain ? (
-                    <CompanyLogo domain={s.domain} size={30} rounded={8} fallbackText={s.serviceName} />
-                  ) : (
-                    <View style={styles.logoFallback}>
-                      <Text style={styles.logoFallbackText}>{(s.serviceName.trim()[0] ?? '?').toUpperCase()}</Text>
-                    </View>
-                  )}
-                </LogoBubble>
-              ))}
-            </View>
-          ) : null}
+              {top3.length > 0 ? (
+                <View style={styles.logoStack} pointerEvents="none">
+                  {top3.map((s, idx) => (
+                    <LogoBubble key={s.id} overlap={idx !== 0}>
+                      {s.domain ? (
+                        <CompanyLogo domain={s.domain} size={30} rounded={8} fallbackText={s.serviceName} />
+                      ) : (
+                        <View style={styles.logoFallback}>
+                          <Text style={styles.logoFallbackText}>{(s.serviceName.trim()[0] ?? '?').toUpperCase()}</Text>
+                        </View>
+                      )}
+                    </LogoBubble>
+                  ))}
+                </View>
+              ) : null}
+            </>
+          )}
         </Pressable>
       </ScrollView>
     </TabScreenBackground>
@@ -264,4 +279,7 @@ const styles = StyleSheet.create({
   logoBubble: { width: 56, height: 56, borderRadius: 28, borderWidth: 1, borderColor: '#E8E8E8', backgroundColor: '#FFFFFF', alignItems: 'center', justifyContent: 'center' },
   logoFallback: { width: 30, height: 30, borderRadius: 8, backgroundColor: 'rgba(11, 8, 3, 0.06)', alignItems: 'center', justifyContent: 'center' },
   logoFallbackText: { fontSize: 14, fontWeight: '900', color: 'rgba(11, 8, 3, 0.72)' },
+
+  emptyCardBody: { flexDirection: 'row', alignItems: 'center', gap: 12, marginTop: 16, marginBottom: 4 },
+  emptyCardText: { fontFamily: 'SF Pro Display', fontSize: 15, fontWeight: '500', color: '#616161' },
 });

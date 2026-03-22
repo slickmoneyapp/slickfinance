@@ -5,7 +5,7 @@ import type { Subscription } from './types';
 import { buildBillingHistoryFromSubscription } from './buildBillingHistoryFromSubscription';
 import { seedSubscriptions } from './seed';
 
-const STORAGE_KEY = 'subscriptions:v5';
+const STORAGE_KEY = 'subscriptions:v6';
 
 /** Fill in any fields added after v1 so old cached data never crashes */
 function migrateItem(raw: any): Subscription {
@@ -121,9 +121,7 @@ export const useSubscriptionsStore = create<SubscriptionsState>()(
       storage: createJSONStorage(() => AsyncStorage),
       onRehydrateStorage: () => (state) => {
         if (state) {
-          // Migrate any items that are missing fields added in later schema versions
           state.items = state.items.map(migrateItem);
-          state.seedIfEmpty();
         }
         useSubscriptionsStore.setState({ hydrated: true });
       },

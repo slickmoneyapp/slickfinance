@@ -160,146 +160,168 @@ export function SubscriptionsScreen({ navigation }: Props) {
           }
         />
 
-        <ScrollView
-          style={{ flex: 1 }}
-          showsVerticalScrollIndicator={false}
-          contentContainerStyle={[
-            s.listContent,
-            { paddingBottom: insets.bottom + scrollBottomForOverlay },
-          ]}
-        >
-          {/* Title/hero/pills column: 16 (scroll) + 20 = 36px from screen — Figma 273:1518 */}
-          <View style={s.figmaTextColumn}>
-            {/* Spending summary: 20px label→monthly, tighter monthly→annual; gap from title via titleToSpendingGroupGap */}
-            <View style={s.spendingBlock}>
-              <Text style={s.spendingContext}>Spending in {spendingMonthLabel}</Text>
-              {hydrated ? (
-                <AnimatedMoneyAmount
-                  amount={monthly}
-                  currency={currency as any}
-                  style={s.spendingHeroAmount}
-                  countFrom={heroMonthlyCountFrom}
-                  onCountComplete={onHeroMonthlyCountComplete}
-                />
-              ) : (
-                <Text style={s.spendingHeroAmount}>—</Text>
-              )}
-              <View style={s.spendingBottomRow}>
-                {momPill ? (
-                  <View
-                    style={[
-                      s.momPill,
-                      momPill.tone === 'green' && s.momPillGreen,
-                      momPill.tone === 'red' && s.momPillRed,
-                      momPill.tone === 'neutral' && s.momPillNeutral,
-                    ]}
-                    accessibilityRole="text"
-                    accessibilityLabel={momPill.label}
-                  >
+        {hydrated && items.length === 0 ? (
+          <View style={s.emptyStateWrap}>
+            <View style={s.emptyStateCard}>
+              <View style={s.emptyStateIconCircle}>
+                <Ionicons name="receipt-outline" size={36} color={colors.textMuted} />
+              </View>
+              <Text style={s.emptyStateTitle}>No subscriptions yet</Text>
+              <Text style={s.emptyStateSubtitle}>
+                Track your recurring payments and{'\n'}stay on top of your spending
+              </Text>
+              <Pressable
+                onPress={() => {
+                  void hapticImpact();
+                  openAdd();
+                }}
+                style={({ pressed }) => [s.emptyStateCta, pressed && s.pressed]}
+              >
+                <Ionicons name="add" size={20} color="#FFFFFF" />
+                <Text style={s.emptyStateCtaText}>Add Your First Subscription</Text>
+              </Pressable>
+            </View>
+          </View>
+        ) : (
+          <>
+            <ScrollView
+              style={{ flex: 1 }}
+              showsVerticalScrollIndicator={false}
+              contentContainerStyle={[
+                s.listContent,
+                { paddingBottom: insets.bottom + scrollBottomForOverlay },
+              ]}
+            >
+              <View style={s.figmaTextColumn}>
+                <View style={s.spendingBlock}>
+                  <Text style={s.spendingContext}>Spending in {spendingMonthLabel}</Text>
+                  {hydrated ? (
+                    <AnimatedMoneyAmount
+                      amount={monthly}
+                      currency={currency as any}
+                      style={s.spendingHeroAmount}
+                      countFrom={heroMonthlyCountFrom}
+                      onCountComplete={onHeroMonthlyCountComplete}
+                    />
+                  ) : (
+                    <Text style={s.spendingHeroAmount}>—</Text>
+                  )}
+                  <View style={s.spendingBottomRow}>
+                    {momPill ? (
+                      <View
+                        style={[
+                          s.momPill,
+                          momPill.tone === 'green' && s.momPillGreen,
+                          momPill.tone === 'red' && s.momPillRed,
+                          momPill.tone === 'neutral' && s.momPillNeutral,
+                        ]}
+                        accessibilityRole="text"
+                        accessibilityLabel={momPill.label}
+                      >
+                        <Text
+                          style={[
+                            s.momPillText,
+                            momPill.tone === 'green' && s.momPillTextGreen,
+                            momPill.tone === 'red' && s.momPillTextRed,
+                            momPill.tone === 'neutral' && s.momPillTextNeutral,
+                            momPill.tone === 'same' && s.momPillTextSame,
+                            androidTextFix,
+                          ]}
+                        >
+                          {momPill.label}
+                        </Text>
+                      </View>
+                    ) : null}
                     <Text
                       style={[
-                        s.momPillText,
-                        momPill.tone === 'green' && s.momPillTextGreen,
-                        momPill.tone === 'red' && s.momPillTextRed,
-                        momPill.tone === 'neutral' && s.momPillTextNeutral,
-                        momPill.tone === 'same' && s.momPillTextSame,
+                        s.spendingYearly,
+                        momPill ? s.spendingYearlyInRow : null,
                         androidTextFix,
                       ]}
                     >
-                      {momPill.label}
+                      {hydrated ? `${formatMoney(yearlyProjection, currency as any)}/year` : ''}
                     </Text>
                   </View>
-                ) : null}
-                <Text
-                  style={[
-                    s.spendingYearly,
-                    momPill ? s.spendingYearlyInRow : null,
-                    androidTextFix,
-                  ]}
-                >
-                  {hydrated ? `${formatMoney(yearlyProjection, currency as any)}/year` : ''}
-                </Text>
-              </View>
-            </View>
-
-            {/* Filter + Calendar View pills */}
-            <View style={s.pillRow}>
-              <Pressable
-                onPress={() => {
-                  void hapticSelection();
-                  setShowCalendar(false);
-                  setShowFilters(true);
-                }}
-                style={({ pressed }) => [s.pill, pressed && s.pressed]}
-              >
-                <Text style={s.pillText}>Filter</Text>
-              </Pressable>
-              <Pressable
-                onPress={() => {
-                  void hapticSelection();
-                  setShowFilters(false);
-                  setShowCalendar((open) => !open);
-                }}
-                style={({ pressed }) => [
-                  s.pill,
-                  showCalendar && s.pillSelected,
-                  pressed && s.pressed,
-                ]}
-              >
-                <Text style={[s.pillText, showCalendar && s.pillTextSelected]}>Calendar View</Text>
-              </Pressable>
-            </View>
-          </View>
-
-          <View style={s.listCard}>
-            {visible.length === 0 ? (
-              <View style={{ paddingHorizontal: 16, paddingVertical: 28 }}>
-                <Text style={s.emptyText}>
-                  {hydrated ? 'No subscriptions match this filter.' : 'Loading…'}
-                </Text>
-              </View>
-            ) : (
-              visible.map((sub, idx) => (
-                <View key={sub.id}>
-                  {idx !== 0 && <View style={s.sepFull} />}
-                  <SubscriptionRow sub={sub} onPressItem={openDetail} />
                 </View>
-              ))
-            )}
-          </View>
-        </ScrollView>
 
-        {/* Bottom CTA: transparent → bg gradient so list fades instead of hard-clipping */}
-        <View
-          pointerEvents="box-none"
-          style={[
-            s.bottomBarOverlay,
-            {
-              paddingBottom: bottomOverlayPadBottom,
-              paddingTop: addBar.gradientFadeHeight + addBar.buttonRowTopPadding,
-              paddingHorizontal: addBar.paddingLeft,
-            },
-          ]}
-        >
-          <LinearGradient
-            colors={['rgba(245,245,245,0)', colors.bg]}
-            locations={[0, 1]}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 0, y: 1 }}
-            style={StyleSheet.absoluteFill}
-            pointerEvents="none"
-          />
-          <Pressable
-            onPress={() => {
-              void hapticImpact();
-              openAdd();
-            }}
-            style={({ pressed }) => [s.addTransactionBtn, pressed && s.pressed]}
-          >
-            <Ionicons name="add" size={20} color="#FFFFFF" />
-            <Text style={s.addTransactionText}>Add Transaction</Text>
-          </Pressable>
-        </View>
+                <View style={s.pillRow}>
+                  <Pressable
+                    onPress={() => {
+                      void hapticSelection();
+                      setShowCalendar(false);
+                      setShowFilters(true);
+                    }}
+                    style={({ pressed }) => [s.pill, pressed && s.pressed]}
+                  >
+                    <Text style={s.pillText}>Filter</Text>
+                  </Pressable>
+                  <Pressable
+                    onPress={() => {
+                      void hapticSelection();
+                      setShowFilters(false);
+                      setShowCalendar((open) => !open);
+                    }}
+                    style={({ pressed }) => [
+                      s.pill,
+                      showCalendar && s.pillSelected,
+                      pressed && s.pressed,
+                    ]}
+                  >
+                    <Text style={[s.pillText, showCalendar && s.pillTextSelected]}>Calendar View</Text>
+                  </Pressable>
+                </View>
+              </View>
+
+              <View style={s.listCard}>
+                {visible.length === 0 ? (
+                  <View style={{ paddingHorizontal: 16, paddingVertical: 28 }}>
+                    <Text style={s.emptyText}>
+                      {hydrated ? 'No subscriptions match this filter.' : 'Loading…'}
+                    </Text>
+                  </View>
+                ) : (
+                  visible.map((sub, idx) => (
+                    <View key={sub.id}>
+                      {idx !== 0 && <View style={s.sepFull} />}
+                      <SubscriptionRow sub={sub} onPressItem={openDetail} />
+                    </View>
+                  ))
+                )}
+              </View>
+            </ScrollView>
+
+            <View
+              pointerEvents="box-none"
+              style={[
+                s.bottomBarOverlay,
+                {
+                  paddingBottom: bottomOverlayPadBottom,
+                  paddingTop: addBar.gradientFadeHeight + addBar.buttonRowTopPadding,
+                  paddingHorizontal: addBar.paddingLeft,
+                },
+              ]}
+            >
+              <LinearGradient
+                colors={['rgba(245,245,245,0)', colors.bg]}
+                locations={[0, 1]}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 0, y: 1 }}
+                style={StyleSheet.absoluteFill}
+                pointerEvents="none"
+              />
+              <Pressable
+                onPress={() => {
+                  void hapticImpact();
+                  openAdd();
+                }}
+                style={({ pressed }) => [s.addTransactionBtn, pressed && s.pressed]}
+              >
+                <Ionicons name="add" size={20} color="#FFFFFF" />
+                <Text style={s.addTransactionText}>Add Transaction</Text>
+              </Pressable>
+            </View>
+          </>
+        )}
 
         <AppActionSheet
           visible={showCalendar}
@@ -836,6 +858,70 @@ const s = StyleSheet.create({
     ...androidTextFix,
   },
   emptyText: { textAlign: 'left', fontSize: 14, fontWeight: '500', color: DIM },
+
+  emptyStateWrap: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 32,
+    paddingBottom: 80,
+  },
+  emptyStateCard: {
+    backgroundColor: CARD,
+    borderRadius: 24,
+    paddingVertical: 48,
+    paddingHorizontal: 32,
+    alignItems: 'center',
+    alignSelf: 'stretch',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.06,
+    shadowRadius: 12,
+    elevation: 3,
+  },
+  emptyStateIconCircle: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: BG,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 24,
+  },
+  emptyStateTitle: {
+    fontFamily: 'BricolageGrotesque_800ExtraBold',
+    fontSize: 22,
+    letterSpacing: -0.5,
+    color: INK,
+    marginBottom: 12,
+    textAlign: 'center',
+  },
+  emptyStateSubtitle: {
+    fontFamily: 'SF Pro Display',
+    fontSize: 15,
+    fontWeight: '500',
+    lineHeight: 22,
+    color: DIM,
+    textAlign: 'center',
+    marginBottom: 32,
+  },
+  emptyStateCta: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    backgroundColor: INK,
+    borderRadius: 999,
+    paddingVertical: 14,
+    paddingHorizontal: 24,
+    alignSelf: 'stretch',
+  },
+  emptyStateCtaText: {
+    fontFamily: 'SF Pro Display',
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#FFFFFF',
+  },
   sheetRoot: { flex: 1, minHeight: 0 },
   sheetTitle: { ...sheetTypography.title },
   sheetSection: {
