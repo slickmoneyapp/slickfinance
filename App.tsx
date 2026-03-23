@@ -15,6 +15,7 @@ import { BudgetScreen } from './src/screens/BudgetScreen';
 import { SubscriptionsScreen } from './src/screens/SubscriptionsScreen';
 import { InvestScreen } from './src/screens/InvestScreen';
 import { SettingsScreen } from './src/screens/SettingsScreen';
+import { LoginScreen } from './src/screens/LoginScreen';
 import {
   ENABLE_BUDGET_TAB,
   ENABLE_INVEST_TAB,
@@ -26,6 +27,7 @@ import { EditSubscriptionScreen } from './src/screens/EditSubscriptionScreen';
 import { useNotificationSync } from './src/hooks/useNotificationSync';
 import { prefetchTabBackground } from './src/assets/tabBackground';
 import { getTabBarIconName } from './src/navigation/tabBarIcons';
+import { useAuthStore } from './src/features/auth/store';
 
 /**
  * Tab routes (Budget / Invest kept for types + future tabs; hidden from bar via featureFlags).
@@ -56,8 +58,19 @@ const Stack = createNativeStackNavigator<RootStackParamList>();
 
 function AppInner() {
   const [fontsLoaded] = useFonts({ BricolageGrotesque_800ExtraBold });
+  const session = useAuthStore((s) => s.session);
+  const initialized = useAuthStore((s) => s.initialized);
   useNotificationSync();
-  if (!fontsLoaded) return null;
+  if (!fontsLoaded || !initialized) return null;
+
+  if (!session) {
+    return (
+      <>
+        <StatusBar style="dark" />
+        <LoginScreen />
+      </>
+    );
+  }
 
   return (
     <>
@@ -115,12 +128,16 @@ function AppInner() {
 }
 
 export default function App() {
-  /** Start warming the tab background asset as early as possible (runs in parallel with font load). */
+  const initializeAuth = useAuthStore((s) => s.initialize);
+
   useEffect(() => {
-    prefetchTabBackground().catch(() => {
-      /* non-fatal — expo-image still decodes from bundle */
-    });
+    prefetchTabBackground().catch(() => {});
   }, []);
+
+  useEffect(() => {
+    const unsubscribe = initializeAuth();
+    return unsubscribe;
+  }, [initializeAuth]);
 
   return (
     <SafeAreaProvider>

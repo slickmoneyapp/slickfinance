@@ -20,6 +20,7 @@ import { colors, spacing } from '../ui/theme';
 import { PageHeader, SectionLabel, SurfaceCard, AppButton } from '../ui/components';
 import { TabScreenBackground } from '../components/TabScreenBackground';
 import { USE_FIGMA_SINGLE_PAGE_NAV } from '../config/featureFlags';
+import { useAuthStore } from '../features/auth/store';
 
 type PermissionStatus = 'granted' | 'denied' | 'undetermined';
 
@@ -28,6 +29,9 @@ export function SettingsScreen() {
   const [permStatus, setPermStatus] = useState<PermissionStatus>('undetermined');
   const [masterEnabled, setMasterEnabled] = useState(true);
   const [sendingTest, setSendingTest] = useState(false);
+  const user = useAuthStore((s) => s.user);
+  const signOut = useAuthStore((s) => s.signOut);
+  const currentProvider = useAuthStore((s) => s.currentProvider);
 
   useEffect(() => {
     Notifications.getPermissionsAsync().then(({ status }) => {
@@ -142,6 +146,34 @@ export function SettingsScreen() {
             <Text style={styles.testBtnText}>
               {sendingTest ? 'Sending…' : 'Send Test Notification'}
             </Text>
+          </Pressable>
+        </SurfaceCard>
+
+        {/* Account */}
+        <SectionLabel>Account</SectionLabel>
+        <SurfaceCard style={styles.card}>
+          <SettingsRow
+            label={user?.email ?? 'Signed In'}
+            sublabel={
+              currentProvider === 'apple'
+                ? 'Apple Account'
+                : currentProvider === 'google'
+                  ? 'Google Account'
+                  : 'Account'
+            }
+            right={null}
+          />
+          <Divider />
+          <Pressable
+            onPress={() => {
+              Alert.alert('Sign Out', 'Are you sure you want to sign out?', [
+                { text: 'Cancel', style: 'cancel' },
+                { text: 'Sign Out', style: 'destructive', onPress: signOut },
+              ]);
+            }}
+            style={({ pressed }) => [styles.testBtn, pressed && styles.pressed]}
+          >
+            <Text style={[styles.testBtnText, { color: '#C62828' }]}>Sign Out</Text>
           </Pressable>
         </SurfaceCard>
 

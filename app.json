@@ -2,6 +2,7 @@
   "expo": {
     "name": "Slick finance",
     "slug": "slick-finance",
+    "scheme": "slickfinance",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./appicon.png",
@@ -14,6 +15,7 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.aibudgetplanner.app",
+      "usesAppleSignIn": true,
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false
       }
@@ -31,7 +33,9 @@
     },
     "plugins": [
       "expo-font",
-      "expo-dev-client"
+      "expo-dev-client",
+      "expo-apple-authentication",
+      "expo-web-browser"
     ],
     "owner": "kazaka",
     "runtimeVersion": {
