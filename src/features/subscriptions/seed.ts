@@ -26,7 +26,6 @@ export const seedSubscriptions: Subscription[] = [
     reminderEnabled: true,
     reminderDaysBefore: 1,
     reminderTime: '09:00',
-    notificationIds: [],
     billingHistory: [
       { id: 'bh_n1', date: daysFromNow(-30), amount: 13.99, currency: 'USD', label: 'Charged' },
       { id: 'bh_n0', date: daysFromNow(-60), amount: 13.99, currency: 'USD', label: 'Subscribed' },
@@ -53,7 +52,6 @@ export const seedSubscriptions: Subscription[] = [
     reminderEnabled: true,
     reminderDaysBefore: 1,
     reminderTime: '09:00',
-    notificationIds: [],
     billingHistory: [
       { id: 'bh_c1', date: daysFromNow(-30), amount: 20, currency: 'USD', label: 'Charged' },
       { id: 'bh_c0', date: daysFromNow(-60), amount: 20, currency: 'USD', label: 'Subscribed' },
@@ -80,7 +78,6 @@ export const seedSubscriptions: Subscription[] = [
     reminderEnabled: true,
     reminderDaysBefore: 1,
     reminderTime: '09:00',
-    notificationIds: [],
     billingHistory: [
       { id: 'bh_s0', date: now, amount: 11.99, currency: 'USD', label: 'Subscribed' },
     ],

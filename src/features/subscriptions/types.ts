@@ -45,7 +45,6 @@ export type Subscription = {
   reminderEnabled: boolean;
   reminderDaysBefore: number;
   reminderTime: string; // "09:00"
-  notificationIds?: string[];
   billingHistory: BillingHistoryEntry[];
   createdAt: string; // ISO
   updatedAt: string; // ISO

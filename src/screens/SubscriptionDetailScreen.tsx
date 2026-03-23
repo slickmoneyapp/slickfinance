@@ -116,8 +116,8 @@ export function SubscriptionDetailScreen({ navigation, route }: Props) {
         {
           text: 'Delete',
           style: 'destructive',
-          onPress: () => {
-            remove(subscription.id);
+          onPress: async () => {
+            await remove(subscription.id);
             navigation.goBack();
           },
         },

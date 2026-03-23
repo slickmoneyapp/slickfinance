@@ -162,7 +162,7 @@ export function EditSubscriptionScreen({ navigation, route }: Props) {
     );
   }
 
-  function handleSave() {
+  async function handleSave() {
     if (!sub) return;
     const numPrice = Number(price.replace(',', '.'));
     if (!serviceName.trim() || !Number.isFinite(numPrice) || numPrice <= 0) {
@@ -171,7 +171,7 @@ export function EditSubscriptionScreen({ navigation, route }: Props) {
     }
 
     void hapticImpactMedium();
-    update(sub.id, {
+    await update(sub.id, {
       serviceName: serviceName.trim(),
       category: (category as Subscription['category']) ?? 'Other',
       price: numPrice,

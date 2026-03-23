@@ -28,6 +28,7 @@ import { useNotificationSync } from './src/hooks/useNotificationSync';
 import { prefetchTabBackground } from './src/assets/tabBackground';
 import { getTabBarIconName } from './src/navigation/tabBarIcons';
 import { useAuthStore } from './src/features/auth/store';
+import { useSubscriptionsStore } from './src/features/subscriptions/store';
 
 /**
  * Tab routes (Budget / Invest kept for types + future tabs; hidden from bar via featureFlags).
@@ -60,7 +61,15 @@ function AppInner() {
   const [fontsLoaded] = useFonts({ BricolageGrotesque_800ExtraBold });
   const session = useAuthStore((s) => s.session);
   const initialized = useAuthStore((s) => s.initialized);
+  const initializeSubs = useSubscriptionsStore((s) => s.initialize);
   useNotificationSync();
+
+  useEffect(() => {
+    if (!session) return;
+    const unsubscribe = initializeSubs();
+    return unsubscribe;
+  }, [session, initializeSubs]);
+
   if (!fontsLoaded || !initialized) return null;
 
   if (!session) {

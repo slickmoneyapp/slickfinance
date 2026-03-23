@@ -158,14 +158,14 @@ export function AddSubscriptionScreen({ navigation }: Props) {
     setStep('form');
   }
 
-  function handleSave() {
+  async function handleSave() {
     const numPrice = Number(price.replace(',', '.'));
     if (!serviceName.trim() || !Number.isFinite(numPrice) || numPrice <= 0) {
       Alert.alert('Missing info', 'Enter a service name and a valid price.');
       return;
     }
     void hapticImpactMedium();
-    add({
+    await add({
       serviceName: serviceName.trim(),
       domain: domain.trim() || undefined,
       category: (category as Subscription['category']) ?? 'Other',
