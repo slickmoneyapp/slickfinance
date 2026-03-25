@@ -17,10 +17,7 @@
       "bundleIdentifier": "com.aibudgetplanner.app",
       "usesAppleSignIn": true,
       "infoPlist": {
-        "ITSAppUsesNonExemptEncryption": false,
-        "NSUserActivityTypes": [
-          "INSendMessageIntent"
-        ]
+        "ITSAppUsesNonExemptEncryption": false
       }
     },
     "android": {
