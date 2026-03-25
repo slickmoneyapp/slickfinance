@@ -5,6 +5,21 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const EXPO_PUSH_URL = "https://exp.host/--/api/v2/push/send";
+const LOGODEV_TOKEN = "pk_SQVsaKc_RfuK49MneNGgxw";
+
+function buildLogoUrl(domain: string): string | null {
+  if (!domain) return null;
+  const clean = domain.trim().toLowerCase();
+  const params = new URLSearchParams({
+    token: LOGODEV_TOKEN,
+    size: "128",
+    format: "png",
+    theme: "light",
+    retina: "true",
+    fallback: "404",
+  });
+  return `https://img.logo.dev/${encodeURIComponent(clean)}?${params.toString()}`;
+}
 
 Deno.serve(async (req) => {
   try {
@@ -19,7 +34,7 @@ Deno.serve(async (req) => {
     // next_charge_date - reminder_days_before = today
     const { data: subs, error: subsError } = await supabase
       .from("subscriptions")
-      .select("id, user_id, service_name, price, currency, reminder_days_before, next_charge_date, reminder_enabled, status")
+      .select("id, user_id, service_name, domain, price, currency, reminder_days_before, next_charge_date, reminder_enabled, status")
       .eq("reminder_enabled", true)
       .in("status", ["active", "trial"]);
 
@@ -32,6 +47,7 @@ Deno.serve(async (req) => {
       body: string;
       data: Record<string, string>;
       sound: string;
+      mutableContent: boolean;
     }> = [];
 
     for (const sub of subs) {
@@ -64,13 +80,20 @@ Deno.serve(async (req) => {
         currency: sub.currency ?? "USD",
       }).format(sub.price);
 
+      const logoUrl = buildLogoUrl(sub.domain);
+
       for (const { token } of tokens) {
         messages.push({
           to: token,
           title: "Upcoming charge",
           body: `${sub.service_name} will charge ${amount} ${phrase}.`,
-          data: { subscriptionId: sub.id },
+          data: {
+            subscriptionId: sub.id,
+            serviceName: sub.service_name,
+            ...(logoUrl ? { logoUrl } : {}),
+          },
           sound: "default",
+          mutableContent: true,
         });
       }
     }
