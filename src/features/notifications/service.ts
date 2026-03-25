@@ -31,13 +31,22 @@ export async function requestNotificationPermissions(): Promise<boolean> {
  * Get Expo Push Token and register it in Supabase for server-side push.
  * Safe to call multiple times — upserts on (user_id, token).
  */
+const EAS_PROJECT_ID = '04b307bf-2309-48e2-b76d-1f92d43de9f3';
+
+function getProjectId(): string {
+  return (
+    Constants.expoConfig?.extra?.eas?.projectId ??
+    Constants.easConfig?.projectId ??
+    EAS_PROJECT_ID
+  );
+}
+
 export async function registerPushToken(): Promise<string | null> {
   try {
     const { status } = await Notifications.getPermissionsAsync();
     if (status !== 'granted') return null;
 
-    const projectId = Constants.expoConfig?.extra?.eas?.projectId;
-    if (!projectId) return null;
+    const projectId = getProjectId();
 
     const { data: tokenData } = await Notifications.getExpoPushTokenAsync({ projectId });
     const token = tokenData;
