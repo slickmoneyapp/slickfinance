@@ -102,7 +102,7 @@ export function SubscriptionsScreen({ navigation }: Props) {
   }
 
   function openAdd() {
-    navigateRoot(navigation as any, 'AddSubscription');
+    navigateRoot(navigation as any, 'AddSubscriptionPrototype');
   }
 
   function openSettings() {
