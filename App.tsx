@@ -151,11 +151,9 @@ export default function App() {
 
   return (
     <SafeAreaProvider>
-      <ForceUpdateGate>
-        <NavigationContainer>
-          <AppInner />
-        </NavigationContainer>
-      </ForceUpdateGate>
+      <NavigationContainer>
+        <AppInner />
+      </NavigationContainer>
     </SafeAreaProvider>
   );
 }

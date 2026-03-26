@@ -1,5 +1,5 @@
 import React from 'react';
-import { Platform, Pressable, StyleSheet, Text, TextStyle, View } from 'react-native';
+import { ActivityIndicator, Platform, Pressable, StyleSheet, Text, TextStyle, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { hapticImpact, hapticSelection } from './haptics';
@@ -110,28 +110,35 @@ export function AppButton({
   onPress,
   variant = 'primary',
   disabled = false,
+  loading = false,
 }: {
   label: string;
   onPress: () => void;
   variant?: 'primary' | 'secondary';
   disabled?: boolean;
+  loading?: boolean;
 }) {
+  const isDisabled = disabled || loading;
   return (
     <Pressable
       onPress={() => {
-        if (disabled) return;
+        if (isDisabled) return;
         void hapticImpact();
         onPress();
       }}
-      disabled={disabled}
+      disabled={isDisabled}
       style={({ pressed }) => [
         s.button,
         variant === 'secondary' && s.buttonSecondary,
         pressed && s.pressed,
-        disabled && { opacity: 0.5 },
+        isDisabled && { opacity: 0.5 },
       ]}
     >
-      <Text style={[s.buttonText, variant === 'secondary' && s.buttonTextSecondary]}>{label}</Text>
+      {loading ? (
+        <ActivityIndicator size="small" color={variant === 'secondary' ? colors.text : '#fff'} />
+      ) : (
+        <Text style={[s.buttonText, variant === 'secondary' && s.buttonTextSecondary]}>{label}</Text>
+      )}
     </Pressable>
   );
 }

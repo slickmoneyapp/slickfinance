@@ -26,9 +26,26 @@ import { AppButton, AppScreen, IconCircleButton, ScreenHeader } from '../ui/comp
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../../App';
 import type { BillingCycle, CurrencyCode, Subscription } from '../features/subscriptions/types';
+import { CATEGORY_ICONS } from '../features/subscriptions/addSubscriptionCatalog';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'EditSubscription'>;
-type SheetType = null | 'billingCycle' | 'list' | 'category' | 'payment' | 'currency' | 'notify';
+type SheetType = null | 'billingCycle' | 'list' | 'category' | 'payment' | 'currency' | 'notify' | 'trialLength' | 'paymentMethod';
+
+type TrialLength = '3d' | '7d' | '1m';
+const TRIAL_LENGTH_OPTIONS: TrialLength[] = ['3d', '7d', '1m'];
+const TRIAL_LENGTH_LABELS: Record<TrialLength, string> = {
+  '3d': '3 Days',
+  '7d': '7 Days',
+  '1m': '1 Month',
+};
+
+const PAYMENT_METHODS_TAGS = [
+  'Cash', 'Credit Card', 'Debit Card',
+  'PayPal', 'Google Pay', 'Apple Pay',
+  'Stripe', 'Bank Transfer', 'Crypto',
+  'AliPay', 'WeChat', 'SEPA', 'Klarna',
+  'Venmo', 'Interac',
+];
 
 const BG = colors.bg;
 const CARD = colors.surface;
@@ -87,9 +104,8 @@ export function EditSubscriptionScreen({ navigation, route }: Props) {
   const [serviceName, setServiceName] = useState(sub?.serviceName ?? '');
   const [domain] = useState(sub?.domain ?? '');
   const [category, setCategory] = useState<string>(sub?.category ?? 'Other');
-  const [categories, setCategories] = useState<string[]>(() => [...BASE_CATEGORIES]);
+  const [categories] = useState<string[]>(() => [...BASE_CATEGORIES]);
   const [categorySearch, setCategorySearch] = useState('');
-  const [newCategory, setNewCategory] = useState('');
 
   const [price, setPrice] = useState(sub ? String(sub.price) : '');
   const [currency, setCurrency] = useState<CurrencyCode>(sub?.currency ?? 'USD');
@@ -117,21 +133,12 @@ export function EditSubscriptionScreen({ navigation, route }: Props) {
   );
 
   const [isTrial, setIsTrial] = useState(sub?.isTrial ?? false);
+  const [trialLength, setTrialLength] = useState<TrialLength>('7d');
   const [list, setList] = useState(sub?.list ?? 'Personal');
 
   const [paymentMethod, setPaymentMethod] = useState(sub?.paymentMethod ?? 'None');
-  const [paymentMethods, setPaymentMethods] = useState<string[]>([
-    'None',
-    'Visa',
-    'Mastercard',
-    'Amex',
-    'Apple Pay',
-    'PayPal',
-    ...(sub?.paymentMethod && !['None', 'Visa', 'Mastercard', 'Amex', 'Apple Pay', 'PayPal'].includes(sub.paymentMethod)
-      ? [sub.paymentMethod]
-      : []),
-  ]);
-  const [newPaymentMethod, setNewPaymentMethod] = useState('');
+
+
 
   const [reminderEnabled, setReminderEnabled] = useState(sub?.reminderEnabled ?? true);
   const [reminderDays, setReminderDays] = useState(sub?.reminderDaysBefore ?? 1);
@@ -196,27 +203,7 @@ export function EditSubscriptionScreen({ navigation, route }: Props) {
     navigation.goBack();
   }
 
-  function addCategory() {
-    const value = newCategory.trim();
-    if (!value) return;
-    if (!categories.includes(value)) {
-      setCategories((prev) => [value, ...prev]);
-    }
-    setCategory(value);
-    setNewCategory('');
-    setSheet(null);
-  }
 
-  function addPaymentMethod() {
-    const value = newPaymentMethod.trim();
-    if (!value) return;
-    if (!paymentMethods.includes(value)) {
-      setPaymentMethods((prev) => [value, ...prev]);
-    }
-    setPaymentMethod(value);
-    setNewPaymentMethod('');
-    setSheet(null);
-  }
 
   async function handleReminderToggle(value: boolean) {
     if (!value) {
@@ -254,7 +241,7 @@ export function EditSubscriptionScreen({ navigation, route }: Props) {
       <ScreenHeader
         title="Edit Subscription"
         left={<IconCircleButton icon="chevron-back" onPress={() => navigation.goBack()} />}
-        right={<AppButton label={saving ? 'Saving...' : 'Save'} onPress={handleSave} disabled={saving} />}
+        right={<AppButton label="Save" onPress={handleSave} loading={saving} />}
       />
       <ScrollView
         style={{ flex: 1 }}
@@ -353,6 +340,14 @@ export function EditSubscriptionScreen({ navigation, route }: Props) {
                 thumbColor="#fff"
               />
             </View>
+            {isTrial && (
+              <>
+                <Divider />
+                <FormRow label="Trial Length" onPress={() => setSheet('trialLength')}>
+                  <Text style={s.valueText}>{TRIAL_LENGTH_LABELS[trialLength]}</Text>
+                </FormRow>
+              </>
+            )}
           </View>
 
           <View style={[s.card, { marginTop: 10 }]}>
@@ -428,6 +423,7 @@ export function EditSubscriptionScreen({ navigation, route }: Props) {
         visible={sheet !== null}
         onClose={() => setSheet(null)}
         safeAreaInsets={layoutInsets}
+        maxHeight={sheet === 'category' ? 9999 : undefined}
       >
           {sheet === 'currency' && (
             <View style={s.sheetRoot}>
@@ -520,78 +516,74 @@ export function EditSubscriptionScreen({ navigation, route }: Props) {
               />
               <ScrollView style={s.sheetScroll} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator>
                 {filteredCategories.map((item) => (
-                  <SheetOption
+                  <Pressable
                     key={item}
-                    label={item}
-                    selected={category === item}
                     onPress={() => {
+                      void hapticSelection();
                       setCategory(item);
                       setSheet(null);
                     }}
-                  />
+                    style={({ pressed }) => [s.catOption, pressed && s.pressed]}
+                  >
+                    <View style={[s.catIconWrap, category === item && s.catIconWrapSelected]}>
+                      <Ionicons
+                        name={(CATEGORY_ICONS[item] ?? 'ellipsis-horizontal-circle-outline') as any}
+                        size={20}
+                        color={category === item ? '#fff' : INK}
+                      />
+                    </View>
+                    <Text style={s.catOptionText}>{item}</Text>
+                    {category === item && (
+                      <Ionicons name="checkmark-circle" size={18} color={GREEN} style={{ marginLeft: 'auto' }} />
+                    )}
+                  </Pressable>
                 ))}
               </ScrollView>
-              <View style={s.inlineEditor}>
-                <Text style={s.inlineLabel}>Add new category</Text>
-                <View style={{ flexDirection: 'row', gap: 8 }}>
-                  <TextInput
-                    value={newCategory}
-                    onChangeText={setNewCategory}
-                    placeholder="New category"
-                    placeholderTextColor={DIM}
-                    style={[s.inlineInput, { flex: 1 }]}
-                  />
-                  <Pressable
-                    onPress={() => {
-                      void hapticSelection();
-                      addCategory();
-                    }}
-                    style={s.smallActionBtn}
-                  >
-                    <Text style={s.smallActionText}>Add</Text>
-                  </Pressable>
-                </View>
-              </View>
             </View>
           )}
 
           {sheet === 'payment' && (
             <View style={s.sheetRoot}>
               <Text style={s.sheetTitle}>Payment Method</Text>
+              <View style={s.tagGrid}>
+                {PAYMENT_METHODS_TAGS.map((method) => {
+                  const selected = paymentMethod === method;
+                  return (
+                    <Pressable
+                      key={method}
+                      onPress={() => {
+                        void hapticSelection();
+                        setPaymentMethod(selected ? '' : method);
+                        if (!selected) setSheet(null);
+                      }}
+                      style={[s.tag, selected && s.tagSelected]}
+                    >
+                      <Text style={[s.tagText, selected && s.tagTextSelected]}>
+                        {method}{selected ? ' ✓' : ''}
+                      </Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
+            </View>
+          )}
+
+          {sheet === 'trialLength' && (
+            <View style={s.sheetRoot}>
+              <Text style={s.sheetTitle}>Trial Length</Text>
               <ScrollView style={s.sheetScroll} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator>
-                {paymentMethods.map((item) => (
+                {TRIAL_LENGTH_OPTIONS.map((opt) => (
                   <SheetOption
-                    key={item}
-                    label={item}
-                    selected={paymentMethod === item}
+                    key={opt}
+                    label={TRIAL_LENGTH_LABELS[opt]}
+                    selected={trialLength === opt}
                     onPress={() => {
-                      setPaymentMethod(item);
+                      setTrialLength(opt);
                       setSheet(null);
                     }}
                   />
                 ))}
               </ScrollView>
-              <View style={s.inlineEditor}>
-                <Text style={s.inlineLabel}>Add new method</Text>
-                <View style={{ flexDirection: 'row', gap: 8 }}>
-                  <TextInput
-                    value={newPaymentMethod}
-                    onChangeText={setNewPaymentMethod}
-                    placeholder="e.g. Revolut card"
-                    placeholderTextColor={DIM}
-                    style={[s.inlineInput, { flex: 1 }]}
-                  />
-                  <Pressable
-                    onPress={() => {
-                      void hapticSelection();
-                      addPaymentMethod();
-                    }}
-                    style={s.smallActionBtn}
-                  >
-                    <Text style={s.smallActionText}>Add</Text>
-                  </Pressable>
-                </View>
-              </View>
             </View>
           )}
 
@@ -810,6 +802,56 @@ const s = StyleSheet.create({
   sheetRoot: { flex: 1, minHeight: 0 },
   sheetScroll: { flex: 1, minHeight: 0 },
   sheetTitle: { ...sheetTypography.title },
+  catOption: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    minHeight: 52,
+    paddingHorizontal: 12,
+    borderRadius: 12,
+    gap: 12,
+  },
+  catIconWrap: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    backgroundColor: '#F2F2F2',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  catIconWrapSelected: {
+    backgroundColor: GREEN,
+  },
+  catOptionText: {
+    fontSize: 15,
+    fontWeight: '600' as const,
+    color: INK,
+  },
+  tagGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    paddingVertical: 8,
+  },
+  tag: {
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    borderRadius: 12,
+    backgroundColor: CARD,
+    borderWidth: 1,
+    borderColor: SEP,
+  },
+  tagSelected: {
+    backgroundColor: GREEN,
+    borderColor: GREEN,
+  },
+  tagText: {
+    fontSize: 14,
+    fontWeight: '600' as const,
+    color: INK,
+  },
+  tagTextSelected: {
+    color: '#FFFFFF',
+  },
   sheetOption: {
     minHeight: 44,
     borderRadius: 12,

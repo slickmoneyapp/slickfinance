@@ -1,58 +1,66 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   Modal,
+  Platform,
   Pressable,
-  ScrollView,
   StyleSheet,
   Text,
   View,
 } from 'react-native';
+import DateTimePicker from '@react-native-community/datetimepicker';
 import { colors, radius } from '../ui/theme';
 import { hapticSelection } from '../ui/haptics';
 
 const INK = colors.text;
-const DIM = colors.textMuted;
 
-function parseTime(hhmm: string): { h: number; m: number } {
-  const [a, b] = hhmm.split(':').map((x) => Number(x));
-  const h = Number.isFinite(a) ? Math.min(23, Math.max(0, Math.floor(a!))) : 9;
-  const m = Number.isFinite(b) ? Math.min(59, Math.max(0, Math.floor(b!))) : 0;
-  return { h, m };
+function parseTime(hhmm: string): Date {
+  const [a, b] = hhmm.split(':').map(Number);
+  const d = new Date();
+  d.setHours(Number.isFinite(a) ? a! : 9, Number.isFinite(b) ? b! : 0, 0, 0);
+  return d;
 }
 
 type Props = {
   visible: boolean;
-  /** "HH:mm" 24h */
   value: string;
   onClose: () => void;
   onSelect: (hhmm: string) => void;
   title?: string;
 };
 
-/**
- * Pure RN Modal + scroll lists — no native time picker wheels.
- */
 export function TimePickerModal({ visible, value, onClose, onSelect, title = 'Reminder time' }: Props) {
-  const [hour, setHour] = useState(9);
-  const [minute, setMinute] = useState(0);
+  const [date, setDate] = useState(() => parseTime(value));
 
   useEffect(() => {
-    if (visible) {
-      const { h, m } = parseTime(value);
-      setHour(h);
-      setMinute(m);
-    }
+    if (visible) setDate(parseTime(value));
   }, [visible, value]);
-
-  const hours = useMemo(() => Array.from({ length: 24 }, (_, i) => i), []);
-  const minutes = useMemo(() => Array.from({ length: 60 }, (_, i) => i), []);
 
   function confirm() {
     void hapticSelection();
-    const hh = String(hour).padStart(2, '0');
-    const mm = String(minute).padStart(2, '0');
+    const hh = String(date.getHours()).padStart(2, '0');
+    const mm = String(date.getMinutes()).padStart(2, '0');
     onSelect(`${hh}:${mm}`);
     onClose();
+  }
+
+  if (Platform.OS === 'android') {
+    if (!visible) return null;
+    return (
+      <DateTimePicker
+        value={date}
+        mode="time"
+        is24Hour
+        display="default"
+        onChange={(_, selected) => {
+          onClose();
+          if (selected) {
+            const hh = String(selected.getHours()).padStart(2, '0');
+            const mm = String(selected.getMinutes()).padStart(2, '0');
+            onSelect(`${hh}:${mm}`);
+          }
+        }}
+      />
+    );
   }
 
   return (
@@ -62,61 +70,21 @@ export function TimePickerModal({ visible, value, onClose, onSelect, title = 'Re
         <View style={styles.sheet}>
           <View style={styles.sheetHeader}>
             <Text style={styles.sheetTitle}>{title}</Text>
-            <Pressable onPress={onClose} hitSlop={10}>
+            <Pressable onPress={onClose} hitSlop={10} style={({ pressed }) => pressed && styles.pressed}>
               <Text style={styles.closeText}>Close</Text>
             </Pressable>
           </View>
-
-          <View style={styles.columns}>
-            <View style={styles.col}>
-              <Text style={styles.colLabel}>Hour</Text>
-              <ScrollView
-                style={styles.scroll}
-                showsVerticalScrollIndicator={false}
-                nestedScrollEnabled
-              >
-                {hours.map((h) => (
-                  <Pressable
-                    key={h}
-                    onPress={() => {
-                      void hapticSelection();
-                      setHour(h);
-                    }}
-                    style={[styles.item, hour === h && styles.itemSelected]}
-                  >
-                    <Text style={[styles.itemText, hour === h && styles.itemTextSelected]}>
-                      {String(h).padStart(2, '0')}
-                    </Text>
-                  </Pressable>
-                ))}
-              </ScrollView>
-            </View>
-            <Text style={styles.sep}>:</Text>
-            <View style={styles.col}>
-              <Text style={styles.colLabel}>Min</Text>
-              <ScrollView
-                style={styles.scroll}
-                showsVerticalScrollIndicator={false}
-                nestedScrollEnabled
-              >
-                {minutes.map((m) => (
-                  <Pressable
-                    key={m}
-                    onPress={() => {
-                      void hapticSelection();
-                      setMinute(m);
-                    }}
-                    style={[styles.item, minute === m && styles.itemSelected]}
-                  >
-                    <Text style={[styles.itemText, minute === m && styles.itemTextSelected]}>
-                      {String(m).padStart(2, '0')}
-                    </Text>
-                  </Pressable>
-                ))}
-              </ScrollView>
-            </View>
-          </View>
-
+          <DateTimePicker
+            value={date}
+            mode="time"
+            display="spinner"
+            is24Hour
+            onChange={(_, selected) => {
+              if (selected) setDate(selected);
+            }}
+            style={styles.picker}
+            themeVariant="light"
+          />
           <Pressable onPress={confirm} style={styles.primaryBtn}>
             <Text style={styles.primaryBtnText}>Done</Text>
           </Pressable>
@@ -127,6 +95,7 @@ export function TimePickerModal({ visible, value, onClose, onSelect, title = 'Re
 }
 
 const styles = StyleSheet.create({
+  pressed: { opacity: 0.75 },
   backdrop: {
     ...StyleSheet.absoluteFillObject,
     backgroundColor: 'rgba(0,0,0,0.45)',
@@ -149,36 +118,13 @@ const styles = StyleSheet.create({
   },
   sheetTitle: { fontSize: 17, fontWeight: '700', color: INK },
   closeText: { fontSize: 16, fontWeight: '600', color: colors.primary },
-  columns: {
-    flexDirection: 'row',
-    alignItems: 'stretch',
-    justifyContent: 'center',
-    gap: 8,
-    marginBottom: 16,
-  },
-  col: { flex: 1, maxWidth: 120 },
-  colLabel: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: DIM,
-    marginBottom: 6,
-    textAlign: 'center',
-  },
-  scroll: { maxHeight: 220 },
-  sep: { fontSize: 28, fontWeight: '700', color: INK, alignSelf: 'center', marginTop: 28 },
-  item: {
-    paddingVertical: 10,
-    alignItems: 'center',
-    borderRadius: 8,
-  },
-  itemSelected: { backgroundColor: 'rgba(11,8,3,0.08)' },
-  itemText: { fontSize: 18, fontWeight: '600', color: INK },
-  itemTextSelected: { fontWeight: '800' },
+  picker: { height: 180 },
   primaryBtn: {
     backgroundColor: colors.primary,
     borderRadius: 12,
     paddingVertical: 14,
     alignItems: 'center',
+    marginTop: 8,
   },
   primaryBtnText: { color: '#FFF', fontSize: 16, fontWeight: '700' },
 });

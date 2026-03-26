@@ -2,7 +2,6 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
-  KeyboardAvoidingView,
   Linking,
   Platform,
   Pressable,
@@ -34,13 +33,30 @@ import {
   BASE_CATEGORIES,
   BILLING_CYCLE_LABELS,
   BILLING_CYCLE_OPTIONS,
+  CATEGORY_ICONS,
   CURRENCY_SYMBOLS,
   POPULAR_SERVICES_BY_SECTION,
   type ServiceTemplate,
 } from '../features/subscriptions/addSubscriptionCatalog';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'AddSubscription'>;
-type SheetType = null | 'list' | 'category' | 'currency' | 'billingCycle' | 'notify';
+type SheetType = null | 'list' | 'category' | 'currency' | 'billingCycle' | 'notify' | 'trialLength' | 'paymentMethod';
+
+type TrialLength = '3d' | '7d' | '1m';
+const TRIAL_LENGTH_OPTIONS: TrialLength[] = ['3d', '7d', '1m'];
+const TRIAL_LENGTH_LABELS: Record<TrialLength, string> = {
+  '3d': '3 Days',
+  '7d': '7 Days',
+  '1m': '1 Month',
+};
+
+const PAYMENT_METHODS = [
+  'Cash', 'Credit Card', 'Debit Card',
+  'PayPal', 'Google Pay', 'Apple Pay',
+  'Stripe', 'Bank Transfer', 'Crypto',
+  'AliPay', 'WeChat', 'SEPA', 'Klarna',
+  'Venmo', 'Interac',
+];
 
 // ─── Design tokens (matches HomeScreen) ──────────────────────────────────────
 const BG = colors.bg;
@@ -67,6 +83,7 @@ export function AddSubscriptionScreen({ navigation }: Props) {
   const [saving, setSaving] = useState(false);
 
   const [step, setStep] = useState<'picker' | 'form'>('picker');
+  const priceRef = useRef<TextInput>(null);
   const [search, setSearch] = useState('');
   const [apiResults, setApiResults] = useState<BrandResult[]>([]);
   const [apiLoading, setApiLoading] = useState(false);
@@ -76,9 +93,8 @@ export function AddSubscriptionScreen({ navigation }: Props) {
   const [serviceName, setServiceName] = useState('');
   const [domain, setDomain] = useState('');
   const [category, setCategory] = useState<string>('Other');
-  const [categories, setCategories] = useState<string[]>(() => [...BASE_CATEGORIES]);
+  const [categories] = useState<string[]>(() => [...BASE_CATEGORIES]);
   const [categorySearch, setCategorySearch] = useState('');
-  const [newCategory, setNewCategory] = useState('');
   const [sheet, setSheet] = useState<SheetType>(null);
   const [price, setPrice] = useState('');
   const [currency, setCurrency] = useState<'USD' | 'EUR' | 'GEL'>('USD');
@@ -93,6 +109,7 @@ export function AddSubscriptionScreen({ navigation }: Props) {
   /** Once user edits "Subscription start", we stop auto-syncing it from "Payment date". */
   const subscriptionStartTouchedRef = useRef(false);
   const [isTrial, setIsTrial] = useState(false);
+  const [trialLength, setTrialLength] = useState<TrialLength>('7d');
   const [list, setList] = useState('Personal');
   const [paymentMethod, setPaymentMethod] = useState('');
   const [reminderEnabled, setReminderEnabled] = useState(true);
@@ -103,6 +120,12 @@ export function AddSubscriptionScreen({ navigation }: Props) {
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [showStartDatePicker, setShowStartDatePicker] = useState(false);
   const [showReminderTimePicker, setShowReminderTimePicker] = useState(false);
+
+  useEffect(() => {
+    if (step === 'form') {
+      setTimeout(() => priceRef.current?.focus(), 400);
+    }
+  }, [step]);
 
   // Debounced brand search — fires 350 ms after user stops typing
   useEffect(() => {
@@ -190,16 +213,6 @@ export function AddSubscriptionScreen({ navigation }: Props) {
     navigation.goBack();
   }
 
-  function addCategory() {
-    const value = newCategory.trim();
-    if (!value) return;
-    if (!categories.includes(value)) {
-      setCategories((prev) => [value, ...prev]);
-    }
-    setCategory(value);
-    setNewCategory('');
-    setSheet(null);
-  }
 
   async function handleReminderToggle(value: boolean) {
     if (!value) {
@@ -380,14 +393,15 @@ export function AddSubscriptionScreen({ navigation }: Props) {
       <ScreenHeader
         title="Add Subscription"
         left={<IconCircleButton icon="chevron-back" onPress={() => setStep('picker')} />}
-        right={<AppButton label={saving ? 'Saving...' : 'Save'} onPress={handleSave} disabled={saving} />}
+        right={<AppButton label="Save" onPress={handleSave} loading={saving} />}
       />
-      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>
         <ScrollView
           style={s.formScroll}
-          contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 50 }}
+          contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 16 }}
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
+          keyboardDismissMode="interactive"
+          automaticallyAdjustKeyboardInsets
         >
           {/* Hero preview */}
           <View style={[s.card, s.heroCard]}>
@@ -419,6 +433,7 @@ export function AddSubscriptionScreen({ navigation }: Props) {
                 <Text style={s.currencyPillText}>{CURRENCY_SYMBOLS[currency]}</Text>
               </Pressable>
               <TextInput
+                ref={priceRef}
                 value={price}
                 onChangeText={setPrice}
                 placeholder="0.00"
@@ -479,6 +494,15 @@ export function AddSubscriptionScreen({ navigation }: Props) {
                 thumbColor="#fff"
               />
             </FormRow>
+            {isTrial && (
+              <>
+                <View style={s.sep} />
+                <FormRow label="Trial Length" onPress={() => setSheet('trialLength')}>
+                  <Text style={s.valueText}>{TRIAL_LENGTH_LABELS[trialLength]}</Text>
+                  <Ionicons name="chevron-forward" size={14} color={DIM} />
+                </FormRow>
+              </>
+            )}
           </View>
 
           {/* List / Category / Payment */}
@@ -493,16 +517,9 @@ export function AddSubscriptionScreen({ navigation }: Props) {
               <Ionicons name="chevron-forward" size={14} color={DIM} />
             </FormRow>
             <View style={s.sep} />
-            <FormRow label="Payment Method">
-              <TextInput
-                value={paymentMethod}
-                onChangeText={setPaymentMethod}
-                placeholder="None"
-                placeholderTextColor={DIM}
-                style={s.inlineInput}
-                textAlign="right"
-              />
-              <Ionicons name="chevron-forward" size={14} color="rgba(11,8,3,0.2)" style={{ marginLeft: 2 }} />
+            <FormRow label="Payment Method" onPress={() => setSheet('paymentMethod')}>
+              <Text style={s.valueText}>{paymentMethod || 'None'}</Text>
+              <Ionicons name="chevron-forward" size={14} color={DIM} />
             </FormRow>
           </View>
 
@@ -573,12 +590,12 @@ export function AddSubscriptionScreen({ navigation }: Props) {
             />
           </View>
         </ScrollView>
-      </KeyboardAvoidingView>
 
         <AppActionSheet
           visible={sheet !== null}
           onClose={() => setSheet(null)}
           safeAreaInsets={layoutInsets}
+          maxHeight={sheet === 'category' ? 9999 : undefined}
         >
           {sheet === 'currency' && (
             <View style={s.sheetRoot}>
@@ -649,38 +666,74 @@ export function AddSubscriptionScreen({ navigation }: Props) {
               />
               <ScrollView style={s.sheetScroll} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator>
                 {filteredCategories.map((item) => (
-                  <SheetOption
+                  <Pressable
                     key={item}
-                    label={item}
-                    selected={category === item}
                     onPress={() => {
+                      void hapticSelection();
                       setCategory(item);
+                      setSheet(null);
+                    }}
+                    style={({ pressed }) => [s.catOption, pressed && s.pressed]}
+                  >
+                    <View style={[s.catIconWrap, category === item && s.catIconWrapSelected]}>
+                      <Ionicons
+                        name={(CATEGORY_ICONS[item] ?? 'ellipsis-horizontal-circle-outline') as any}
+                        size={20}
+                        color={category === item ? '#fff' : INK}
+                      />
+                    </View>
+                    <Text style={s.catOptionText}>{item}</Text>
+                    {category === item && (
+                      <Ionicons name="checkmark-circle" size={18} color={GREEN} style={{ marginLeft: 'auto' }} />
+                    )}
+                  </Pressable>
+                ))}
+              </ScrollView>
+            </View>
+          )}
+
+          {sheet === 'paymentMethod' && (
+            <View style={s.sheetRoot}>
+              <Text style={s.sheetTitle}>Payment Method</Text>
+              <View style={s.tagGrid}>
+                {PAYMENT_METHODS.map((method) => {
+                  const selected = paymentMethod === method;
+                  return (
+                    <Pressable
+                      key={method}
+                      onPress={() => {
+                        void hapticSelection();
+                        setPaymentMethod(selected ? '' : method);
+                        if (!selected) setSheet(null);
+                      }}
+                      style={[s.tag, selected && s.tagSelected]}
+                    >
+                      <Text style={[s.tagText, selected && s.tagTextSelected]}>
+                        {method}{selected ? ' ✓' : ''}
+                      </Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
+            </View>
+          )}
+
+          {sheet === 'trialLength' && (
+            <View style={s.sheetRoot}>
+              <Text style={s.sheetTitle}>Trial Length</Text>
+              <ScrollView style={s.sheetScroll} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator>
+                {TRIAL_LENGTH_OPTIONS.map((opt) => (
+                  <SheetOption
+                    key={opt}
+                    label={TRIAL_LENGTH_LABELS[opt]}
+                    selected={trialLength === opt}
+                    onPress={() => {
+                      setTrialLength(opt);
                       setSheet(null);
                     }}
                   />
                 ))}
               </ScrollView>
-              <View style={s.inlineEditor}>
-                <Text style={s.inlineLabel}>Add new category</Text>
-                <View style={{ flexDirection: 'row', gap: 8 }}>
-                  <TextInput
-                    value={newCategory}
-                    onChangeText={setNewCategory}
-                    placeholder="New category"
-                    placeholderTextColor={DIM}
-                    style={[s.sheetTextInput, { flex: 1 }]}
-                  />
-                  <Pressable
-                    onPress={() => {
-                      void hapticSelection();
-                      addCategory();
-                    }}
-                    style={s.smallActionBtn}
-                  >
-                    <Text style={s.smallActionText}>Add</Text>
-                  </Pressable>
-                </View>
-              </View>
             </View>
           )}
 
@@ -996,6 +1049,56 @@ const s = StyleSheet.create({
     justifyContent: 'center',
   },
   smallActionText: { color: '#fff', fontSize: 13, fontWeight: '700' },
+  catOption: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    minHeight: 52,
+    paddingHorizontal: 12,
+    borderRadius: 12,
+    gap: 12,
+  },
+  catIconWrap: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    backgroundColor: '#F2F2F2',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  catIconWrapSelected: {
+    backgroundColor: GREEN,
+  },
+  catOptionText: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: INK,
+  },
+  tagGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    paddingVertical: 8,
+  },
+  tag: {
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    borderRadius: 12,
+    backgroundColor: CARD,
+    borderWidth: 1,
+    borderColor: SEP,
+  },
+  tagSelected: {
+    backgroundColor: GREEN,
+    borderColor: GREEN,
+  },
+  tagText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: INK,
+  },
+  tagTextSelected: {
+    color: '#FFFFFF',
+  },
   sheetDoneBtn: {
     marginTop: 12,
     backgroundColor: INK,
