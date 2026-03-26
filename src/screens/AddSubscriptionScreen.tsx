@@ -24,7 +24,7 @@ import { useSubscriptionsStore } from '../features/subscriptions/store';
 import { requestNotificationPermissions } from '../features/notifications/service';
 import { searchBrands, type BrandResult } from '../utils/brandSearch';
 import { colors, radius, sheetTypography } from '../ui/theme';
-import { AppButton, AppScreen, HeaderTextAction, IconCircleButton, ScreenHeader } from '../ui/components';
+import { AppButton, HeaderTextAction, IconCircleButton, ScreenHeader } from '../ui/components';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../../App';
 import type { Subscription } from '../features/subscriptions/types';

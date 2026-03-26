@@ -51,7 +51,7 @@ export function TimePickerModal({ visible, value, onClose, onSelect, title = 'Re
         mode="time"
         is24Hour
         display="default"
-        onChange={(_, selected) => {
+        onChange={(_: any, selected?: Date) => {
           onClose();
           if (selected) {
             const hh = String(selected.getHours()).padStart(2, '0');
@@ -79,7 +79,7 @@ export function TimePickerModal({ visible, value, onClose, onSelect, title = 'Re
             mode="time"
             display="spinner"
             is24Hour
-            onChange={(_, selected) => {
+            onChange={(_: any, selected?: Date) => {
               if (selected) setDate(selected);
             }}
             style={styles.picker}

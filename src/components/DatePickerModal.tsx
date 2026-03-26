@@ -28,7 +28,7 @@ export function DatePickerModal({ visible, value, onClose, onSelect, title = 'Pa
         value={value}
         mode="date"
         display="default"
-        onChange={(_, selected) => {
+        onChange={(_: any, selected?: Date) => {
           onClose();
           if (selected) onSelect(selected);
         }}
@@ -51,7 +51,7 @@ export function DatePickerModal({ visible, value, onClose, onSelect, title = 'Pa
             value={value}
             mode="date"
             display="inline"
-            onChange={(_, selected) => {
+            onChange={(_: any, selected?: Date) => {
               if (selected) onSelect(selected);
             }}
             style={styles.picker}

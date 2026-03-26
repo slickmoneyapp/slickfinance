@@ -26,6 +26,13 @@ import { AddSubscriptionScreen } from './src/screens/AddSubscriptionScreen';
 import { SubscriptionDetailScreen } from './src/screens/SubscriptionDetailScreen';
 import { EditSubscriptionScreen } from './src/screens/EditSubscriptionScreen';
 import { PaywallScreen } from './src/screens/PaywallScreen';
+import { CurrencySelectScreen } from './src/screens/settings/CurrencySelectScreen';
+import {
+  AccountSettingsScreen,
+  CategoriesManageScreen,
+  LegalSettingsScreen,
+  PaymentMethodsManageScreen,
+} from './src/screens/settings/SettingsGroups';
 import { useNotificationSync } from './src/hooks/useNotificationSync';
 import { prefetchTabBackground } from './src/assets/tabBackground';
 import { getTabBarIconName } from './src/navigation/tabBarIcons';
@@ -53,6 +60,11 @@ export type RootStackParamList = {
   Subscriptions: undefined;
   Home: undefined;
   Settings: undefined;
+  CurrencySelect: undefined;
+  LegalSettings: undefined;
+  AccountSettings: undefined;
+  CategoriesManage: undefined;
+  PaymentMethodsManage: undefined;
   Budget: undefined;
   Invest: undefined;
   AddSubscription: undefined;
@@ -80,7 +92,7 @@ function AppInner() {
   useEffect(() => {
     if (!session) return;
     checkAccess();
-    const listener = adapty.addEventListener('onLatestProfileLoad', (profile) => {
+    const listener = adapty.addEventListener('onLatestProfileLoad', (profile: any) => {
       const hasAccess = profile.accessLevels?.['premium']?.isActive === true;
       setIsPremium(hasAccess);
     });
@@ -119,6 +131,15 @@ function AppInner() {
         ) : (
           <Stack.Screen name="Tabs" component={RootTabs} options={{ headerShown: false }} />
         )}
+        <Stack.Screen name="CurrencySelect" component={CurrencySelectScreen} options={{ headerShown: false }} />
+        <Stack.Screen name="LegalSettings" component={LegalSettingsScreen} options={{ headerShown: false }} />
+        <Stack.Screen name="AccountSettings" component={AccountSettingsScreen} options={{ headerShown: false }} />
+        <Stack.Screen name="CategoriesManage" component={CategoriesManageScreen} options={{ headerShown: false }} />
+        <Stack.Screen
+          name="PaymentMethodsManage"
+          component={PaymentMethodsManageScreen}
+          options={{ headerShown: false }}
+        />
         <Stack.Screen
           name="AddSubscription"
           component={AddSubscriptionScreen}
@@ -184,9 +205,11 @@ export default function App() {
 
   return (
     <SafeAreaProvider>
-      <NavigationContainer>
-        <AppInner />
-      </NavigationContainer>
+      <ForceUpdateGate>
+        <NavigationContainer>
+          <AppInner />
+        </NavigationContainer>
+      </ForceUpdateGate>
     </SafeAreaProvider>
   );
 }

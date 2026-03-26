@@ -51,7 +51,7 @@ export function ForceUpdateGate({ children }: Props) {
 
         if (data?.value) {
           const currentVersion =
-            Constants.expoConfig?.version ?? Constants.manifest?.version ?? '0.0.0';
+            Constants.expoConfig?.version ?? (Constants.manifest as any)?.version ?? '0.0.0';
           if (compareVersions(currentVersion, data.value)) {
             setNeedsUpdate(true);
           }

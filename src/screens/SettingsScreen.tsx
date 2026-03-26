@@ -22,6 +22,9 @@ import { TabScreenBackground } from '../components/TabScreenBackground';
 import { USE_FIGMA_SINGLE_PAGE_NAV } from '../config/featureFlags';
 import { useAuthStore } from '../features/auth/store';
 import { usePremiumStore } from '../features/premium/store';
+import * as WebBrowser from 'expo-web-browser';
+import { useSettingsStore } from '../features/settings/store';
+import { TimePickerModal } from '../components/TimePickerModal';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../../App';
 
@@ -32,43 +35,23 @@ export function SettingsScreen() {
   const [permStatus, setPermStatus] = useState<PermissionStatus>('undetermined');
   const [masterEnabled, setMasterEnabled] = useState(true);
   const [sendingTest, setSendingTest] = useState(false);
+  const [showTimePicker, setShowTimePicker] = useState(false);
   const user = useAuthStore((s) => s.user);
   const signOut = useAuthStore((s) => s.signOut);
   const currentProvider = useAuthStore((s) => s.currentProvider);
   const isPremium = usePremiumStore((s) => s.isPremium);
+
+  const preferredCurrency = useSettingsStore((s) => s.preferredCurrency);
+  const defaultReminderTime = useSettingsStore((s) => s.defaultReminderTime);
+  const notificationsEnabled = useSettingsStore((s) => s.notificationsEnabled);
+  const setDefaultReminderTime = useSettingsStore((s) => s.setDefaultReminderTime);
+  const setNotificationsEnabled = useSettingsStore((s) => s.setNotificationsEnabled);
 
   useEffect(() => {
     Notifications.getPermissionsAsync().then(({ status }) => {
       setPermStatus(status as PermissionStatus);
     });
   }, []);
-
-  async function handleMasterToggle(value: boolean) {
-    Haptics.selectionAsync();
-    if (value) {
-      const { status, canAskAgain } = await Notifications.getPermissionsAsync();
-      if (status !== 'granted') {
-        if (canAskAgain) {
-          const { status: newStatus } = await Notifications.requestPermissionsAsync();
-          setPermStatus(newStatus as PermissionStatus);
-          setMasterEnabled(newStatus === 'granted');
-          return;
-        } else {
-          Alert.alert(
-            'Notifications Blocked',
-            'Please enable notifications in Settings > Slick Money.',
-            [
-              { text: 'Cancel', style: 'cancel' },
-              { text: 'Open Settings', onPress: () => Linking.openSettings() },
-            ],
-          );
-          return;
-        }
-      }
-      setPermStatus('granted');
-    }
-    setMasterEnabled(value);
-  }
 
   async function handleTestNotification() {
     if (sendingTest) return;
@@ -85,6 +68,50 @@ export function SettingsScreen() {
   }
 
   const notificationsActive = masterEnabled && permStatus === 'granted';
+
+  function openInApp(url: string) {
+    void WebBrowser.openBrowserAsync(url, {
+      presentationStyle: WebBrowser.WebBrowserPresentationStyle.PAGE_SHEET,
+      controlsColor: colors.text,
+    } as any);
+  }
+
+  async function handleNotificationsToggle(value: boolean) {
+    void Haptics.selectionAsync();
+    if (!value) {
+      void setNotificationsEnabled(false);
+      setMasterEnabled(false);
+      return;
+    }
+
+    const { status, canAskAgain } = await Notifications.getPermissionsAsync();
+    if (status === 'granted') {
+      setPermStatus('granted');
+      void setNotificationsEnabled(true);
+      setMasterEnabled(true);
+      return;
+    }
+
+    if (canAskAgain) {
+      const { status: newStatus } = await Notifications.requestPermissionsAsync();
+      setPermStatus(newStatus as PermissionStatus);
+      const enabled = newStatus === 'granted';
+      void setNotificationsEnabled(enabled);
+      setMasterEnabled(enabled);
+      return;
+    }
+
+    void setNotificationsEnabled(false);
+    setMasterEnabled(false);
+    Alert.alert(
+      'Notifications Blocked',
+      'Please enable notifications in Settings > Slick Money.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Open Settings', onPress: () => Linking.openSettings() },
+      ],
+    );
+  }
 
   return (
     <TabScreenBackground variant="figma" edges={['top', 'left', 'right']}>
@@ -127,6 +154,32 @@ export function SettingsScreen() {
         )}
 
         {/* Notifications section */}
+        <SectionLabel>App</SectionLabel>
+
+        <SurfaceCard style={styles.card}>
+          <SettingsNavRow
+            label="Preferred Currency"
+            value={preferredCurrency}
+            onPress={() => navigation.navigate('CurrencySelect')}
+          />
+          <Divider />
+          <SettingsInlineRow
+            label="Default Reminder Time"
+            value={defaultReminderTime}
+            onPress={() => setShowTimePicker(true)}
+          />
+          <Divider />
+          <SettingsNavRow label="Categories" onPress={() => navigation.navigate('CategoriesManage')} />
+          <Divider />
+          <SettingsNavRow label="Payment Methods" onPress={() => navigation.navigate('PaymentMethodsManage')} />
+          <Divider />
+          <SettingsToggleRow
+            label="Notifications"
+            value={notificationsEnabled}
+            onValueChange={handleNotificationsToggle}
+          />
+        </SurfaceCard>
+
         <SectionLabel>Notifications</SectionLabel>
 
         {permStatus === 'denied' ? (
@@ -147,7 +200,7 @@ export function SettingsScreen() {
             right={
               <Switch
                 value={notificationsActive}
-                onValueChange={handleMasterToggle}
+                onValueChange={handleNotificationsToggle}
                 trackColor={{ false: '#D9D9D9', true: '#30CE5A' }}
                 thumbColor={Platform.OS === 'android' ? '#ffffff' : undefined}
               />
@@ -164,7 +217,7 @@ export function SettingsScreen() {
         </SurfaceCard>
 
         {/* Test notification */}
-        <SectionLabel>Debug</SectionLabel>
+        <SectionLabel>Test</SectionLabel>
         <SurfaceCard style={styles.card}>
           <Pressable
             onPress={handleTestNotification}
@@ -176,19 +229,41 @@ export function SettingsScreen() {
           </Pressable>
         </SurfaceCard>
 
-        {/* Account */}
+        <SectionLabel>Feedback</SectionLabel>
+        <SurfaceCard style={styles.card}>
+          <SettingsNavRow label="Send Feedback" onPress={() => openInApp('https://slickmoney.featurebase.app/')} />
+          <Divider />
+          <SettingsNavRow label="Roadmap" onPress={() => openInApp('https://slickmoney.featurebase.app/roadmap')} />
+        </SurfaceCard>
+
+        <SectionLabel>Support</SectionLabel>
+        <SurfaceCard style={styles.card}>
+          <SettingsNavRow label="Rate App" onPress={() => Alert.alert('Rate App', 'Not wired yet.')} />
+          <Divider />
+          <SettingsNavRow label="Share App" onPress={() => Alert.alert('Share', 'Not wired yet.')} />
+          <Divider />
+          <SettingsNavRow label="Contact Support" onPress={() => openInApp('https://www.slickmoney.app/contact')} />
+          <Divider />
+          <SettingsNavRow label="FAQ" onPress={() => openInApp('https://www.slickmoney.app/#faq')} />
+        </SurfaceCard>
+
+        <SectionLabel>Legal</SectionLabel>
+        <SurfaceCard style={styles.card}>
+          <SettingsNavRow label="Legal" onPress={() => navigation.navigate('LegalSettings')} />
+        </SurfaceCard>
+
         <SectionLabel>Account</SectionLabel>
         <SurfaceCard style={styles.card}>
-          <SettingsRow
-            label={user?.email ?? 'Signed In'}
-            sublabel={
+          <SettingsNavRow
+            label={user?.email ?? 'Account'}
+            value={
               currentProvider === 'apple'
                 ? 'Apple Account'
                 : currentProvider === 'google'
                   ? 'Google Account'
-                  : 'Account'
+                  : undefined
             }
-            right={null}
+            onPress={() => navigation.navigate('AccountSettings')}
           />
           <Divider />
           <Pressable
@@ -204,7 +279,6 @@ export function SettingsScreen() {
           </Pressable>
         </SurfaceCard>
 
-        {/* App info */}
         <SectionLabel>About</SectionLabel>
         <SurfaceCard style={styles.card}>
           <SettingsRow label="Version" sublabel="Slick Money" right={<Text style={styles.valueText}>1.0.0</Text>} />
@@ -212,6 +286,14 @@ export function SettingsScreen() {
 
         <View style={{ height: 40 }} />
       </ScrollView>
+
+      <TimePickerModal
+        visible={showTimePicker}
+        value={defaultReminderTime}
+        onClose={() => setShowTimePicker(false)}
+        onSelect={(v) => void setDefaultReminderTime(v)}
+        title="Default reminder time"
+      />
     </TabScreenBackground>
   );
 }
@@ -240,6 +322,75 @@ function Divider() {
   return <View style={styles.divider} />;
 }
 
+function SettingsNavRow({
+  label,
+  value,
+  onPress,
+}: {
+  label: string;
+  value?: string;
+  onPress: () => void;
+}) {
+  return (
+    <Pressable
+      onPress={() => {
+        void hapticSelection();
+        onPress();
+      }}
+      style={({ pressed }) => [styles.row, pressed && styles.pressed]}
+    >
+      <Text style={styles.rowLabel}>{label}</Text>
+      <View style={styles.rowRight}>
+        {value ? <Text style={styles.valueText} numberOfLines={1}>{value}</Text> : null}
+        <Ionicons name="chevron-forward" size={16} color={colors.textMuted} />
+      </View>
+    </Pressable>
+  );
+}
+
+function SettingsInlineRow({ label, value, onPress }: { label: string; value: string; onPress: () => void }) {
+  return (
+    <Pressable
+      onPress={() => {
+        void hapticSelection();
+        onPress();
+      }}
+      style={({ pressed }) => [styles.row, pressed && styles.pressed]}
+    >
+      <Text style={styles.rowLabel}>{label}</Text>
+      <View style={styles.rowRight}>
+        <Text style={styles.valueText}>{value}</Text>
+        <Ionicons name="chevron-forward" size={16} color={colors.textMuted} />
+      </View>
+    </Pressable>
+  );
+}
+
+function SettingsToggleRow({
+  label,
+  value,
+  onValueChange,
+}: {
+  label: string;
+  value: boolean;
+  onValueChange: (v: boolean) => void;
+}) {
+  return (
+    <View style={styles.row}>
+      <Text style={styles.rowLabel}>{label}</Text>
+      <Switch
+        value={value}
+        onValueChange={(v) => {
+          void hapticSelection();
+          onValueChange(v);
+        }}
+        trackColor={{ false: '#D9D9D9', true: '#30CE5A' }}
+        thumbColor={undefined}
+      />
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
   backRow: {
     flexDirection: 'row',
@@ -262,10 +413,13 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingVertical: 14,
     gap: 12,
+    justifyContent: 'space-between',
+    minHeight: 52,
   },
-  rowLabel: { fontSize: 15, fontWeight: '700', color: colors.text },
+  rowLabel: { fontSize: 15, fontWeight: '600', color: colors.text },
   rowSublabel: { fontSize: 12, fontWeight: '500', color: colors.textMuted },
   valueText: { fontSize: 14, fontWeight: '600', color: colors.textMuted },
+  rowRight: { flexDirection: 'row', alignItems: 'center', gap: 8, maxWidth: '60%' },
 
   divider: { height: 1, backgroundColor: colors.borderSubtle, marginHorizontal: -16 },
 
