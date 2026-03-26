@@ -42,7 +42,8 @@
       "expo-font",
       "expo-dev-client",
       "expo-apple-authentication",
-      "expo-web-browser"
+      "expo-web-browser",
+      "react-native-adapty"
     ],
     "owner": "kazaka",
     "runtimeVersion": {

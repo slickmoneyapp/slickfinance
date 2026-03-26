@@ -21,17 +21,21 @@ import { PageHeader, SectionLabel, SurfaceCard, AppButton } from '../ui/componen
 import { TabScreenBackground } from '../components/TabScreenBackground';
 import { USE_FIGMA_SINGLE_PAGE_NAV } from '../config/featureFlags';
 import { useAuthStore } from '../features/auth/store';
+import { usePremiumStore } from '../features/premium/store';
+import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import type { RootStackParamList } from '../../App';
 
 type PermissionStatus = 'granted' | 'denied' | 'undetermined';
 
 export function SettingsScreen() {
-  const navigation = useNavigation();
+  const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const [permStatus, setPermStatus] = useState<PermissionStatus>('undetermined');
   const [masterEnabled, setMasterEnabled] = useState(true);
   const [sendingTest, setSendingTest] = useState(false);
   const user = useAuthStore((s) => s.user);
   const signOut = useAuthStore((s) => s.signOut);
   const currentProvider = useAuthStore((s) => s.currentProvider);
+  const isPremium = usePremiumStore((s) => s.isPremium);
 
   useEffect(() => {
     Notifications.getPermissionsAsync().then(({ status }) => {
@@ -98,6 +102,29 @@ export function SettingsScreen() {
           </Pressable>
         ) : null}
         <PageHeader title="Settings" titleVariant="figma" />
+
+        {/* Premium */}
+        {!isPremium && (
+          <>
+            <SectionLabel>Premium</SectionLabel>
+            <SurfaceCard style={styles.card}>
+              <Pressable
+                onPress={() => {
+                  void hapticSelection();
+                  navigation.navigate('Paywall');
+                }}
+                style={({ pressed }) => [styles.premiumBtn, pressed && styles.pressed]}
+              >
+                <Ionicons name="diamond-outline" size={20} color="#CB30E0" />
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.premiumTitle}>Upgrade to Premium</Text>
+                  <Text style={styles.premiumSub}>Unlock all features</Text>
+                </View>
+                <Ionicons name="chevron-forward" size={18} color={colors.textMuted} />
+              </Pressable>
+            </SurfaceCard>
+          </>
+        )}
 
         {/* Notifications section */}
         <SectionLabel>Notifications</SectionLabel>
@@ -259,4 +286,13 @@ const styles = StyleSheet.create({
   },
   bannerText: { fontSize: 13, fontWeight: '600', color: colors.text },
   bannerBtn: { alignSelf: 'flex-start' },
+
+  premiumBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 14,
+    gap: 12,
+  },
+  premiumTitle: { fontSize: 15, fontWeight: '700', color: colors.text },
+  premiumSub: { fontSize: 12, fontWeight: '500', color: colors.textMuted, marginTop: 2 },
 });

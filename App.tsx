@@ -7,6 +7,7 @@ import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
+import { adapty } from 'react-native-adapty';
 
 import { HomeScreen } from './src/screens/HomeScreen';
 import { HomeStackNavigator } from './src/navigation/HomeStack';
@@ -24,11 +25,13 @@ import {
 import { AddSubscriptionScreen } from './src/screens/AddSubscriptionScreen';
 import { SubscriptionDetailScreen } from './src/screens/SubscriptionDetailScreen';
 import { EditSubscriptionScreen } from './src/screens/EditSubscriptionScreen';
+import { PaywallScreen } from './src/screens/PaywallScreen';
 import { useNotificationSync } from './src/hooks/useNotificationSync';
 import { prefetchTabBackground } from './src/assets/tabBackground';
 import { getTabBarIconName } from './src/navigation/tabBarIcons';
 import { useAuthStore } from './src/features/auth/store';
 import { useSubscriptionsStore } from './src/features/subscriptions/store';
+import { usePremiumStore } from './src/features/premium/store';
 import { ForceUpdateGate } from './src/components/ForceUpdateGate';
 
 /**
@@ -55,6 +58,7 @@ export type RootStackParamList = {
   AddSubscription: undefined;
   SubscriptionDetail: { subscriptionId: string };
   EditSubscription: { subscriptionId: string };
+  Paywall: undefined;
 };
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
@@ -63,6 +67,8 @@ function AppInner() {
   const session = useAuthStore((s) => s.session);
   const initialized = useAuthStore((s) => s.initialized);
   const initializeSubs = useSubscriptionsStore((s) => s.initialize);
+  const checkAccess = usePremiumStore((s) => s.checkAccess);
+  const setIsPremium = usePremiumStore((s) => s.setIsPremium);
   useNotificationSync();
 
   useEffect(() => {
@@ -70,6 +76,16 @@ function AppInner() {
     const unsubscribe = initializeSubs();
     return unsubscribe;
   }, [session, initializeSubs]);
+
+  useEffect(() => {
+    if (!session) return;
+    checkAccess();
+    const listener = adapty.addEventListener('onLatestProfileLoad', (profile) => {
+      const hasAccess = profile.accessLevels?.['premium']?.isActive === true;
+      setIsPremium(hasAccess);
+    });
+    return () => { listener.remove(); };
+  }, [session, checkAccess, setIsPremium]);
 
   if (!fontsLoaded || !initialized) return null;
 
@@ -132,6 +148,16 @@ function AppInner() {
             contentStyle: { flex: 1 },
           }}
         />
+        <Stack.Screen
+          name="Paywall"
+          component={PaywallScreen}
+          options={{
+            presentation: Platform.OS === 'ios' ? 'fullScreenModal' : 'modal',
+            headerShown: false,
+            animation: 'slide_from_bottom',
+            contentStyle: { flex: 1 },
+          }}
+        />
       </Stack.Navigator>
     </>
   );
@@ -142,6 +168,13 @@ export default function App() {
 
   useEffect(() => {
     prefetchTabBackground().catch(() => {});
+    try {
+      adapty.activate('public_live_9sPsrYQj.OGaYn2BE3f44Zb11SphL', {
+        __ignoreActivationOnFastRefresh: __DEV__,
+      });
+    } catch (e) {
+      console.warn('Adapty activation error:', e);
+    }
   }, []);
 
   useEffect(() => {
