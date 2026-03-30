@@ -1,11 +1,11 @@
 import { StatusBar } from 'expo-status-bar';
 import React, { useEffect } from 'react';
-import { Platform, StyleSheet } from 'react-native';
+import { Platform } from 'react-native';
 import { useFonts, BricolageGrotesque_800ExtraBold } from '@expo-google-fonts/bricolage-grotesque';
 import { NavigationContainer } from '@react-navigation/native';
-import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
+import { createNativeBottomTabNavigator } from '@bottom-tabs/react-navigation';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
-import { Ionicons } from '@expo/vector-icons';
+
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { adapty } from 'react-native-adapty';
 
@@ -29,7 +29,7 @@ import { EditSubscriptionScreen } from './src/screens/EditSubscriptionScreen';
 import { PaywallScreen } from './src/screens/PaywallScreen';
 import { useNotificationSync } from './src/hooks/useNotificationSync';
 import { prefetchTabBackground } from './src/assets/tabBackground';
-import { getTabBarIconName } from './src/navigation/tabBarIcons';
+
 import { useAuthStore } from './src/features/auth/store';
 import { useSubscriptionsStore } from './src/features/subscriptions/store';
 import { usePremiumStore } from './src/features/premium/store';
@@ -46,7 +46,7 @@ export type RootTabsParamList = {
   Settings: undefined;
 };
 
-const Tabs = createBottomTabNavigator<RootTabsParamList>();
+const Tabs = createNativeBottomTabNavigator<RootTabsParamList>();
 export type RootStackParamList = {
   /** Classic app shell (bottom tabs) */
   Tabs: undefined;
@@ -199,20 +199,22 @@ export default function App() {
   );
 }
 
+const SF_SYMBOLS: Record<string, string> = {
+  Home: 'house.fill',
+  Budget: 'chart.pie.fill',
+  Subscriptions: 'creditcard.fill',
+  Invest: 'chart.line.uptrend.xyaxis',
+  Settings: 'gearshape.fill',
+};
+
 function RootTabs() {
   return (
     <Tabs.Navigator
       screenOptions={({ route }) => ({
         headerShown: false,
-        tabBarShowLabel: true,
         tabBarActiveTintColor: '#CB30E0',
         tabBarInactiveTintColor: '#8C8C8C',
-        tabBarLabelStyle: { fontSize: 11, fontWeight: '600' },
-        tabBarStyle: styles.tabBar,
-        tabBarItemStyle: styles.tabItem,
-        tabBarIcon: ({ color, size, focused }) => (
-          <Ionicons name={getTabBarIconName(route.name, focused)} size={size} color={color} />
-        ),
+        tabBarIcon: () => ({ sfSymbol: SF_SYMBOLS[route.name] ?? 'questionmark.circle' }),
       })}
     >
       <Tabs.Screen name="Home" component={HomeStackNavigator} />
@@ -223,17 +225,3 @@ function RootTabs() {
     </Tabs.Navigator>
   );
 }
-
-const styles = StyleSheet.create({
-  tabBar: {
-    backgroundColor: '#FFFFFF',
-    borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: '#E5E5E5',
-    elevation: 0,
-    shadowOpacity: 0,
-  },
-  tabItem: {
-    paddingTop: 4,
-    paddingBottom: 4,
-  },
-});

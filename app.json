@@ -44,7 +44,8 @@
       "expo-dev-client",
       "expo-apple-authentication",
       "expo-web-browser",
-      "react-native-adapty"
+      "react-native-adapty",
+      "react-native-bottom-tabs"
     ],
     "owner": "kazaka",
     "runtimeVersion": {

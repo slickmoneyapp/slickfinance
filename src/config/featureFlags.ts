@@ -2,7 +2,7 @@
  * **Figma layout:** one full-screen root (Subscriptions) — no bottom tab bar.
  * Set `false` to restore the classic tab navigator (Home / Subscriptions / Settings).
  */
-export const USE_FIGMA_SINGLE_PAGE_NAV = true;
+export const USE_FIGMA_SINGLE_PAGE_NAV = false;
 
 /**
  * Flip these on when Budget / Invest are ready for the tab bar.
