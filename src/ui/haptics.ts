@@ -27,3 +27,8 @@ export async function hapticImpact(
 export async function hapticImpactMedium(): Promise<void> {
   return hapticImpact(Haptics.ImpactFeedbackStyle.Medium);
 }
+
+/** Strongest impact — sliders, decisive actions */
+export async function hapticImpactHeavy(): Promise<void> {
+  return hapticImpact(Haptics.ImpactFeedbackStyle.Heavy);
+}

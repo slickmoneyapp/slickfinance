@@ -12,13 +12,12 @@ import {
   View,
 } from 'react-native';
 import Ionicons from '@expo/vector-icons/Ionicons';
-import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { SFIcon } from '../components/SFIcon';
 import { formatMoney, monthlySpendTotal } from '../features/subscriptions/calc';
 import { useSubscriptionsStore } from '../features/subscriptions/store';
-import { hapticSelection } from '../ui/haptics';
+import { hapticImpactHeavy, hapticImpactMedium, hapticSelection } from '../ui/haptics';
 import { figma, radius, spacing } from '../ui/theme';
 
 const ANNUAL_RETURN = 0.07;
@@ -28,15 +27,17 @@ const DEMO_MAX_MONTHLY = 240;
 
 const WEBULL_URL = 'https://www.webull.com/open-account';
 const ROBINHOOD_URL = 'https://robinhood.com/signup';
-const WEBULL_LOGO_URI =
-  'file:///Users/macbook/.cursor/projects/Users-macbook-Desktop-slickfinance/assets/webull-b821bd4c-f476-4582-9745-1826d26a0e14.png';
-const ROBINHOOD_LOGO_URI =
-  'file:///Users/macbook/.cursor/projects/Users-macbook-Desktop-slickfinance/assets/robinhood-022bae0a-f4e8-4e25-af9c-23ee48fc6460.png';
+
+/** Bundled partner marks (logo.dev snapshot) — ship in repo for offline / reliable builds */
+const PARTNER_LOGO_WEBULL = require('../assets/partners/webull.png');
+const PARTNER_LOGO_ROBINHOOD = require('../assets/partners/robinhood.png');
 
 const TRACK_GREY = 'rgba(0, 0, 0, 0.10)';
 const THUMB_SIZE = 32;
 const TRACK_HEIGHT = 12;
 const THUMB_OVERHANG = (THUMB_SIZE - TRACK_HEIGHT) / 2; // 10px
+/** One haptic tick per step across 0…1 (50 discrete steps). */
+const SLIDER_HAPTIC_STEPS = 50;
 /** Intrinsic size of `invest-slider-stripes.png` (width × height). */
 const STRIPE_PNG_W = 765;
 const STRIPE_PNG_H = 20;
@@ -89,11 +90,16 @@ function InvestSlider({
   const grantValue = useRef(value);
   const grantPageX = useRef(0);
   const valueRef = useRef(value);
-  const lastTickValueRef = useRef(value);
-  const lastTickAtMsRef = useRef(0);
+  const lastHapticStepRef = useRef(0);
+  /** Thumb + fill read this so they move on the same frame as the gesture (no parent round-trip). */
+  const [dragging, setDragging] = useState(false);
+  const [liveNorm, setLiveNorm] = useState(value);
   useEffect(() => {
     valueRef.current = value;
   }, [value]);
+  useEffect(() => {
+    if (!dragging) setLiveNorm(value);
+  }, [value, dragging]);
 
   const valueFromPageX = useCallback(
     (pageX: number, startPageX: number, startVal: number) => {
@@ -114,46 +120,54 @@ function InvestSlider({
           onInteractionStart?.();
           grantPageX.current = e.nativeEvent.pageX;
           grantValue.current = valueRef.current;
-          lastTickValueRef.current = valueRef.current;
-          lastTickAtMsRef.current = Date.now();
-          void hapticSelection();
+          const v0 = valueRef.current;
+          setDragging(true);
+          setLiveNorm(v0);
+          lastHapticStepRef.current = Math.min(
+            SLIDER_HAPTIC_STEPS - 1,
+            Math.max(0, Math.floor(v0 * SLIDER_HAPTIC_STEPS))
+          );
+          void hapticImpactHeavy();
         },
         onPanResponderMove: (e) => {
           const next = valueFromPageX(e.nativeEvent.pageX, grantPageX.current, grantValue.current);
+          setLiveNorm(next);
           onChange(next);
 
-          const now = Date.now();
-          if (
-            Math.abs(next - lastTickValueRef.current) >= 0.04 &&
-            now - lastTickAtMsRef.current >= 40
-          ) {
-            lastTickValueRef.current = next;
-            lastTickAtMsRef.current = now;
-            void hapticSelection();
+          const step = Math.min(
+            SLIDER_HAPTIC_STEPS - 1,
+            Math.max(0, Math.floor(next * SLIDER_HAPTIC_STEPS))
+          );
+          if (step !== lastHapticStepRef.current) {
+            lastHapticStepRef.current = step;
+            void hapticImpactMedium();
           }
         },
         onPanResponderRelease: () => {
+          setDragging(false);
           onInteractionEnd?.();
-          void hapticSelection();
+          void hapticImpactHeavy();
         },
         onPanResponderTerminate: () => {
+          setDragging(false);
           onInteractionEnd?.();
         },
       }),
     [onChange, onInteractionEnd, onInteractionStart, valueFromPageX]
   );
 
-  const fillW = trackWidth > 0 ? clamp01(value) * trackWidth : 0;
+  const fillW = trackWidth > 0 ? clamp01(liveNorm) * trackWidth : 0;
   const thumbLeft =
     trackWidth > TRACK_HEIGHT
-      ? -THUMB_OVERHANG + clamp01(value) * (trackWidth - TRACK_HEIGHT)
+      ? -THUMB_OVERHANG + clamp01(liveNorm) * (trackWidth - TRACK_HEIGHT)
       : -THUMB_OVERHANG;
 
   function onTrackPress(locationX: number) {
     if (trackWidth <= 0) return;
     const v = clamp01(locationX / trackWidth);
+    setLiveNorm(v);
     onChange(v);
-    void hapticSelection();
+    void hapticImpactHeavy();
   }
 
   return (
@@ -291,6 +305,10 @@ function InfoFootnote() {
   );
 }
 
+function PartnerBrandLogo({ source }: { source: React.ComponentProps<typeof RNImage>['source'] }) {
+  return <RNImage source={source} style={styles.partnerBrandImage} resizeMode="contain" />;
+}
+
 function PartnerRow({
   logo,
   name,
@@ -337,22 +355,14 @@ function OurPartners() {
         subtitle="Advanced tools. Zero commission."
         url={WEBULL_URL}
         isFirst
-        logo={
-          <Image source={{ uri: WEBULL_LOGO_URI }} style={styles.partnerLogoImage} contentFit="contain" />
-        }
+        logo={<PartnerBrandLogo source={PARTNER_LOGO_WEBULL} />}
       />
 
       <PartnerRow
         name="Robinhood"
         subtitle="Simple way to start investing."
         url={ROBINHOOD_URL}
-        logo={
-          <Image
-            source={{ uri: ROBINHOOD_LOGO_URI }}
-            style={styles.partnerLogoImage}
-            contentFit="contain"
-          />
-        }
+        logo={<PartnerBrandLogo source={PARTNER_LOGO_ROBINHOOD} />}
       />
     </View>
   );
@@ -606,16 +616,10 @@ const styles = StyleSheet.create({
     alignSelf: 'center',
     flexShrink: 0,
   },
-  brandOrb: {
+  partnerBrandImage: {
     width: 36,
     height: 36,
     borderRadius: 18,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  partnerLogoImage: {
-    width: 36,
-    height: 36,
   },
   partnerMain: {
     flex: 1,
