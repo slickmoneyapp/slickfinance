@@ -1,24 +1,52 @@
 import React from 'react';
 import { Image as RNImage, StyleSheet, useWindowDimensions, View } from 'react-native';
 import { Image } from 'expo-image';
-import { SafeAreaView, type Edge } from 'react-native-safe-area-context';
 import { TAB_SCREEN_BACKGROUND } from '../assets/tabBackground';
 import { colors } from '../ui/theme';
+
+/**
+ * Sky illustration rendered as an absolutely-positioned layer **inside** a ScrollView.
+ *
+ * Place this as the first child of every tab screen's ScrollView / FlatList header.
+ * It is absolutely positioned so it does not affect content layout, and sits behind
+ * the content (content paints on top).
+ *
+ * The image is placed at `top: 0` relative to the scroll content. With
+ * `contentInsetAdjustmentBehavior="automatic"`, content starts below the transparent
+ * navigation bar, so the image appears right below the header and scrolls with content.
+ */
+export function ScreenBgImage() {
+  const { width: screenWidth } = useWindowDimensions();
+  const resolved = RNImage.resolveAssetSource(TAB_SCREEN_BACKGROUND);
+  const aspect =
+    resolved?.width && resolved?.height ? resolved.height / resolved.width : 0.81;
+  const bgHeight = Math.round(screenWidth * aspect);
+
+  return (
+    <View style={[styles.container, { width: screenWidth, height: bgHeight }]} pointerEvents="none">
+      <Image
+        source={TAB_SCREEN_BACKGROUND}
+        style={{ width: screenWidth, height: bgHeight }}
+        contentFit="cover"
+        cachePolicy="memory-disk"
+        transition={0}
+        recyclingKey="tab-screen-bg"
+      />
+    </View>
+  );
+}
 
 export type TabScreenBackgroundVariant = 'default' | 'figma';
 
 /**
- * Soft sky illustration (`background.png`) behind the safe area — same asset for both variants.
- * `variant` is kept for API compatibility; the visual is always the image + `colors.bg` below.
+ * Backward-compatible wrapper for non-tab screens (modals, detail views) that don't need
+ * the native large-title collapse. Renders the sky image behind children in a plain View.
  */
 export function TabScreenBackground({
   children,
-  edges = ['top', 'left', 'right'],
-  disableSafeAreaView = false,
-  variant: _variant = 'figma',
 }: {
   children: React.ReactNode;
-  edges?: Edge[];
+  edges?: readonly string[];
   disableSafeAreaView?: boolean;
   variant?: TabScreenBackgroundVariant;
 }) {
@@ -28,23 +56,9 @@ export function TabScreenBackground({
     resolved?.width && resolved?.height ? resolved.height / resolved.width : 0.81;
   const bgHeight = Math.round(screenWidth * aspect);
 
-  // #region agent log
-  if (__DEV__) {
-    fetch('http://127.0.0.1:7407/ingest/bd32949a-51b2-4bbb-ad45-8aded2dcc1b5',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'3969cd'},body:JSON.stringify({sessionId:'3969cd',runId:'run10',hypothesisId:'H15',location:'src/components/TabScreenBackground.tsx:32',message:'TabScreenBackground render',data:{edges,disableSafeAreaView,contentSafeBackground:'transparent',rootBackground:colors.bg,bgHeight,screenWidth},timestamp:Date.now()})}).catch(()=>{});
-    console.warn('[DBG3969cd][H10] TabScreenBackground render', {
-      edges,
-      disableSafeAreaView,
-      contentSafeBackground: 'transparent',
-      rootBackground: colors.bg,
-      bgHeight,
-      screenWidth,
-    });
-  }
-  // #endregion
-
   return (
-    <View style={styles.root}>
-      <View pointerEvents="none" style={styles.topIllustration}>
+    <View style={wrapperStyles.root}>
+      <View pointerEvents="none" style={wrapperStyles.topIllustration}>
         <Image
           source={TAB_SCREEN_BACKGROUND}
           style={{ width: screenWidth, height: bgHeight }}
@@ -54,19 +68,21 @@ export function TabScreenBackground({
           recyclingKey="tab-screen-bg"
         />
       </View>
-      {disableSafeAreaView ? (
-        <View style={styles.contentSafe}>{children}</View>
-      ) : (
-        <SafeAreaView style={styles.contentSafe} edges={edges}>
-          {children}
-        </SafeAreaView>
-      )}
+      {children}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
+  container: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    zIndex: -1,
+  },
+});
+
+const wrapperStyles = StyleSheet.create({
   root: { flex: 1, backgroundColor: colors.bg },
   topIllustration: { position: 'absolute', top: 0, left: 0 },
-  contentSafe: { flex: 1, backgroundColor: 'transparent' },
 });

@@ -1,0 +1,27 @@
+diff --git a/node_modules/react-native-bottom-tabs/ios/TabView/LegacyTabView.swift b/node_modules/react-native-bottom-tabs/ios/TabView/LegacyTabView.swift
+index 9d0a624..cb6fa42 100644
+--- a/node_modules/react-native-bottom-tabs/ios/TabView/LegacyTabView.swift
++++ b/node_modules/react-native-bottom-tabs/ios/TabView/LegacyTabView.swift
+@@ -39,7 +39,7 @@ struct LegacyTabView: AnyTabView {
+         )
+ 
+         RepresentableView(view: child)
+-          .ignoresSafeArea(.container, edges: .all)
++          .ignoresSafeArea(.container, edges: [.top, .leading, .trailing])
+           .tabItem {
+             TabItem(
+               title: tabData.title,
+diff --git a/node_modules/react-native-bottom-tabs/ios/TabView/NewTabView.swift b/node_modules/react-native-bottom-tabs/ios/TabView/NewTabView.swift
+index d699315..a1ed602 100644
+--- a/node_modules/react-native-bottom-tabs/ios/TabView/NewTabView.swift
++++ b/node_modules/react-native-bottom-tabs/ios/TabView/NewTabView.swift
+@@ -30,7 +30,8 @@ struct NewTabView: AnyTabView {
+ 
+             Tab(value: tabData.key, role: tabData.role?.convert()) {
+               RepresentableView(view: child.view)
+-                .ignoresSafeArea(.container, edges: .all)
++                // Respect bottom safe area (home indicator). Ignoring .all zeros out JS insets.
++                .ignoresSafeArea(.container, edges: [.top, .leading, .trailing])
+                 .tabAppear(using: context)
+                 .hideTabBar(props.tabBarHidden)
+             } label: {

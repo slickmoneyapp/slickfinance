@@ -1,0 +1,32 @@
+diff --git a/node_modules/react-native-screens/ios/RNSScreenStackHeaderConfig.mm b/node_modules/react-native-screens/ios/RNSScreenStackHeaderConfig.mm
+index 7d8e494..8948521 100644
+--- a/node_modules/react-native-screens/ios/RNSScreenStackHeaderConfig.mm
++++ b/node_modules/react-native-screens/ios/RNSScreenStackHeaderConfig.mm
+@@ -439,6 +439,12 @@ + (UINavigationBarAppearance *)buildAppearance:(UIViewController *)vc withConfig
+ {
+   UINavigationBarAppearance *appearance = [UINavigationBarAppearance new];
+ 
++  // Paragraph indents stack with UINavigationBar's default content margins (~16–17pt). Using 36pt here
++  // measured ~53pt to the glyph on iPhone; 19 ≈ 36 total (36 − 17).
++  const CGFloat rnscreens_titleHorizontalParagraphInset = 19.0;
++  // Large title only — letter-spacing ≈ CSS -2px (kern is in points).
++  const CGFloat rnscreens_largeTitleKern = -2.0;
++
+   if (config.backgroundColor && CGColorGetAlpha(config.backgroundColor.CGColor) == 0.) {
+     // Preserve the shadow properties in case the user wants to show the shadow on scroll.
+     UIColor *shadowColor = appearance.shadowColor;
+@@ -530,6 +536,14 @@ + (UINavigationBarAppearance *)buildAppearance:(UIViewController *)vc withConfig
+       largeAttrs[NSFontAttributeName] = [UIFont systemFontOfSize:[largeSize floatValue] weight:UIFontWeightBold];
+     }
+ 
++    // Large title only — ~36pt total to glyph with bar's built-in margin.
++    NSMutableParagraphStyle *largeTitleParagraph = [[NSMutableParagraphStyle alloc] init];
++    largeTitleParagraph.firstLineHeadIndent = rnscreens_titleHorizontalParagraphInset;
++    largeTitleParagraph.headIndent = rnscreens_titleHorizontalParagraphInset;
++    largeTitleParagraph.tailIndent = -rnscreens_titleHorizontalParagraphInset;
++    largeAttrs[NSParagraphStyleAttributeName] = largeTitleParagraph;
++    largeAttrs[NSKernAttributeName] = @(rnscreens_largeTitleKern);
++
+     appearance.largeTitleTextAttributes = largeAttrs;
+   }
+ 

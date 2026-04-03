@@ -1,24 +1,27 @@
 import React from 'react';
-import { ScrollView, StyleSheet, Text } from 'react-native';
+import { Platform, ScrollView, StyleSheet, useWindowDimensions } from 'react-native';
 import { colors, spacing } from '../ui/theme';
-import { TabScreenBackground } from '../components/TabScreenBackground';
 
 export function BudgetScreen() {
+  const { height: windowHeight } = useWindowDimensions();
   return (
-    <TabScreenBackground variant="figma" edges={['left', 'right', 'bottom']}>
-      <ScrollView
-        contentContainerStyle={styles.content}
-        showsVerticalScrollIndicator={false}
-        contentInsetAdjustmentBehavior="automatic"
-      >
-        <Text style={styles.sub}>Placeholder screen.</Text>
-      </ScrollView>
-    </TabScreenBackground>
+    <ScrollView
+      style={styles.scroll}
+      contentContainerStyle={[
+        styles.content,
+        { minHeight: Platform.OS === 'ios' ? windowHeight + 1 : windowHeight },
+      ]}
+      showsVerticalScrollIndicator={false}
+      contentInsetAdjustmentBehavior={Platform.OS === 'ios' ? 'automatic' : undefined}
+      alwaysBounceVertical
+      bounces
+    >
+    </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
-  content: { paddingHorizontal: spacing.screenX, paddingTop: 8, paddingBottom: 40, gap: 8 },
+  scroll: { flex: 1 },
+  content: { paddingHorizontal: spacing.screenX, paddingTop: 8, paddingBottom: 40, gap: 8, flexGrow: 1 },
   sub: { fontSize: 15, fontWeight: '600', color: colors.textMuted },
 });
-

@@ -1,376 +1,674 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-  Animated,
+  Image as RNImage,
   Linking,
   PanResponder,
+  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
   Text,
+  useWindowDimensions,
   View,
 } from 'react-native';
+import Ionicons from '@expo/vector-icons/Ionicons';
+import { Image } from 'expo-image';
+import { LinearGradient } from 'expo-linear-gradient';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { SFIcon } from '../components/SFIcon';
-import Svg, { Path } from 'react-native-svg';
-import { hapticSelection } from '../ui/haptics';
-import type { NavigationProp } from '@react-navigation/native';
+import { formatMoney, monthlySpendTotal } from '../features/subscriptions/calc';
 import { useSubscriptionsStore } from '../features/subscriptions/store';
-import { formatMoney, monthlySpendTotal, subscriptionMonthlyEquivalent } from '../features/subscriptions/calc';
-import type { CurrencyCode } from '../features/subscriptions/types';
-import { colors, radius, spacing } from '../ui/theme';
-import { SurfaceCard } from '../ui/components';
-import { TabScreenBackground } from '../components/TabScreenBackground';
+import { hapticSelection } from '../ui/haptics';
+import { figma, radius, spacing } from '../ui/theme';
 
-type Props = { navigation: NavigationProp<any> };
+const ANNUAL_RETURN = 0.07;
+const MONTHS = 120;
+/** No subscriptions: slider 0…max; midpoint = 50% → e.g. $120/m when max is $240 (matches screenshot). */
+const DEMO_MAX_MONTHLY = 240;
 
-const BG = colors.bg;
-const CARD = colors.surface;
-const INK = colors.text;
-const DIM = colors.textMuted;
-const SEP = colors.borderSoft;
-const ACCENT = '#6D62FF';
-const GREEN = colors.success;
+const WEBULL_URL = 'https://www.webull.com/open-account';
+const ROBINHOOD_URL = 'https://robinhood.com/signup';
+const WEBULL_LOGO_URI =
+  'file:///Users/macbook/.cursor/projects/Users-macbook-Desktop-slickfinance/assets/webull-b821bd4c-f476-4582-9745-1826d26a0e14.png';
+const ROBINHOOD_LOGO_URI =
+  'file:///Users/macbook/.cursor/projects/Users-macbook-Desktop-slickfinance/assets/robinhood-022bae0a-f4e8-4e25-af9c-23ee48fc6460.png';
 
-const AFFILIATE_ROBINHOOD = 'https://robinhood.com/?ref=budgetplanner&utm_source=budgetplanner&utm_medium=affiliate';
-const AFFILIATE_WEBULL = 'https://www.webull.com/?source=budgetplanner&utm_source=budgetplanner&utm_medium=affiliate';
+const TRACK_GREY = 'rgba(0, 0, 0, 0.10)';
+const THUMB_SIZE = 32;
+const TRACK_HEIGHT = 12;
+const THUMB_OVERHANG = (THUMB_SIZE - TRACK_HEIGHT) / 2; // 10px
+/** Intrinsic size of `invest-slider-stripes.png` (width × height). */
+const STRIPE_PNG_W = 765;
+const STRIPE_PNG_H = 20;
 
-function clamp(v: number, min: number, max: number) {
-  return Math.min(max, Math.max(min, v));
+function futureValueMonthly(monthly: number, annualRate: number, months: number): number {
+  if (monthly <= 0) return 0;
+  const i = annualRate / 12;
+  if (i < 1e-12) return monthly * months;
+  return monthly * ((Math.pow(1 + i, months) - 1) / i);
 }
 
-function futureValue(monthlyContribution: number, annualRate: number, years: number) {
-  const r = annualRate / 12;
-  const n = years * 12;
-  if (r <= 0) return monthlyContribution * n;
-  return monthlyContribution * ((Math.pow(1 + r, n) - 1) / r);
+function clamp01(x: number) {
+  return Math.max(0, Math.min(1, x));
 }
 
-function useAnimatedNumber(target: number, duration = 240) {
-  const anim = useRef(new Animated.Value(target)).current;
-  const [value, setValue] = useState(target);
-  useEffect(() => {
-    const id = anim.addListener(({ value: v }) => setValue(v));
-    Animated.timing(anim, { toValue: target, duration, useNativeDriver: false }).start();
-    return () => anim.removeListener(id);
-  }, [anim, duration, target]);
-  return value;
-}
-
-function ProjectionChart({ points }: { points: number[] }) {
-  const width = 320;
-  const height = 90;
-  const maxVal = Math.max(...points, 1);
-  const path = points
-    .map((p, i) => {
-      const x = (i / (points.length - 1 || 1)) * width;
-      const y = height - (p / maxVal) * (height - 6);
-      return `${i === 0 ? 'M' : 'L'} ${x} ${y}`;
-    })
-    .join(' ');
-
+/** Stripe texture from asset; height fixed at track, width follows PNG aspect ratio; tiles repeat if fill is wider. */
+function SliderStripeOverlay({ width }: { width: number }) {
+  const tileW = TRACK_HEIGHT * (STRIPE_PNG_W / STRIPE_PNG_H);
+  const tileCount = Math.max(1, Math.ceil(width / tileW));
+  const source = require('../assets/invest-slider-stripes.png');
   return (
-    <View style={s.chartWrap}>
-      <Svg width="100%" height={height + 4} viewBox={`0 0 ${width} ${height + 4}`}>
-        <Path d={path} stroke={ACCENT} strokeWidth={2.6} fill="none" />
-      </Svg>
+    <View style={[sliderStyles.fillStripeOverlay, { width }]} pointerEvents="none">
+      <View style={sliderStyles.stripeTileRow}>
+        {Array.from({ length: tileCount }, (_, i) => (
+          <RNImage
+            key={i}
+            source={source}
+            style={{ width: tileW, height: TRACK_HEIGHT }}
+            resizeMode="contain"
+          />
+        ))}
+      </View>
     </View>
   );
 }
 
-function SliderRow({
-  label,
+function InvestSlider({
   value,
-  min,
-  max,
-  suffix,
   onChange,
+  trackWidth,
+  onInteractionStart,
+  onInteractionEnd,
 }: {
-  label: string;
   value: number;
-  min: number;
-  max: number;
-  suffix: string;
-  onChange: (next: number) => void;
+  onChange: (v: number) => void;
+  trackWidth: number;
+  onInteractionStart?: () => void;
+  onInteractionEnd?: () => void;
 }) {
-  const trackWidth = 260;
-  const ratio = (value - min) / (max - min);
-  const thumbX = ratio * trackWidth;
+  const grantValue = useRef(value);
+  const grantPageX = useRef(0);
+  const valueRef = useRef(value);
+  const lastTickValueRef = useRef(value);
+  const lastTickAtMsRef = useRef(0);
+  useEffect(() => {
+    valueRef.current = value;
+  }, [value]);
 
-  const responder = useMemo(
+  const valueFromPageX = useCallback(
+    (pageX: number, startPageX: number, startVal: number) => {
+      if (trackWidth <= TRACK_HEIGHT) return startVal;
+      const deltaPx = pageX - startPageX;
+      const deltaNorm = deltaPx / (trackWidth - TRACK_HEIGHT);
+      return clamp01(startVal + deltaNorm);
+    },
+    [trackWidth]
+  );
+
+  const panResponder = useMemo(
     () =>
       PanResponder.create({
         onStartShouldSetPanResponder: () => true,
         onMoveShouldSetPanResponder: () => true,
         onPanResponderGrant: (e) => {
-          const x = e.nativeEvent.locationX;
-          onChange(clamp(Math.round(min + (x / trackWidth) * (max - min)), min, max));
+          onInteractionStart?.();
+          grantPageX.current = e.nativeEvent.pageX;
+          grantValue.current = valueRef.current;
+          lastTickValueRef.current = valueRef.current;
+          lastTickAtMsRef.current = Date.now();
+          void hapticSelection();
         },
         onPanResponderMove: (e) => {
-          const x = e.nativeEvent.locationX;
-          onChange(clamp(Math.round(min + (x / trackWidth) * (max - min)), min, max));
+          const next = valueFromPageX(e.nativeEvent.pageX, grantPageX.current, grantValue.current);
+          onChange(next);
+
+          const now = Date.now();
+          if (
+            Math.abs(next - lastTickValueRef.current) >= 0.04 &&
+            now - lastTickAtMsRef.current >= 40
+          ) {
+            lastTickValueRef.current = next;
+            lastTickAtMsRef.current = now;
+            void hapticSelection();
+          }
+        },
+        onPanResponderRelease: () => {
+          onInteractionEnd?.();
+          void hapticSelection();
+        },
+        onPanResponderTerminate: () => {
+          onInteractionEnd?.();
         },
       }),
-    [max, min, onChange]
+    [onChange, onInteractionEnd, onInteractionStart, valueFromPageX]
   );
 
+  const fillW = trackWidth > 0 ? clamp01(value) * trackWidth : 0;
+  const thumbLeft =
+    trackWidth > TRACK_HEIGHT
+      ? -THUMB_OVERHANG + clamp01(value) * (trackWidth - TRACK_HEIGHT)
+      : -THUMB_OVERHANG;
+
+  function onTrackPress(locationX: number) {
+    if (trackWidth <= 0) return;
+    const v = clamp01(locationX / trackWidth);
+    onChange(v);
+    void hapticSelection();
+  }
+
   return (
-    <View style={{ gap: 8 }}>
-      <View style={s.sliderHead}>
-        <Text style={s.sliderLabel}>{label}</Text>
-        <Text style={s.sliderValue}>{value}{suffix}</Text>
+    <View style={sliderStyles.wrap}>
+      <View style={sliderStyles.trackSlot}>
+        <Pressable
+          style={[sliderStyles.trackPress, { width: trackWidth }]}
+          onPress={(e) => onTrackPress(e.nativeEvent.locationX)}
+        >
+          <View style={StyleSheet.absoluteFillObject}>
+            <View style={sliderStyles.trackBg} />
+            {fillW > 0.5 ? (
+              <View style={[sliderStyles.fillClip, { width: fillW }]} pointerEvents="none">
+                <LinearGradient
+                  colors={['#D53AEA', '#CB30E0']}
+                  start={{ x: 0.5, y: 0 }}
+                  end={{ x: 0.5, y: 1 }}
+                  style={sliderStyles.fillGradient}
+                />
+                <SliderStripeOverlay width={fillW} />
+              </View>
+            ) : null}
+          </View>
+        </Pressable>
       </View>
-      <View style={s.sliderTrackBox} {...responder.panHandlers}>
-        <View style={s.sliderTrack} />
-        <View style={[s.sliderFill, { width: thumbX }]} />
-        <View style={[s.sliderThumb, { left: thumbX - 9 }]} />
+      <View style={[sliderStyles.thumbOuter, { left: thumbLeft }]} {...panResponder.panHandlers}>
+        <LinearGradient
+          colors={['#D53AEA', '#DF44F4', '#B71CCC']}
+          locations={[0.021, 0.3703, 1]}
+          start={{ x: 0.5, y: 0 }}
+          end={{ x: 0.5, y: 1 }}
+          style={sliderStyles.thumbMiddle}
+        >
+          <LinearGradient
+            colors={['#FFFFFF', '#FFBBFF']}
+            start={{ x: 0.5, y: 0 }}
+            end={{ x: 0.5, y: 1 }}
+            style={sliderStyles.thumbInner}
+          />
+        </LinearGradient>
       </View>
     </View>
   );
 }
 
-export function InvestScreen({ navigation }: Props) {
-  const items = useSubscriptionsStore((s) => s.items);
+const sliderStyles = StyleSheet.create({
+  wrap: {
+    marginTop: 0,
+    height: THUMB_SIZE,
+    position: 'relative',
+    justifyContent: 'center',
+  },
+  trackSlot: {
+    ...StyleSheet.absoluteFillObject,
+    justifyContent: 'center',
+  },
+  trackPress: {
+    height: TRACK_HEIGHT,
+    borderRadius: 20,
+    overflow: 'hidden',
+    alignSelf: 'stretch',
+  },
+  trackBg: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: TRACK_GREY,
+    borderRadius: 20,
+  },
+  fillClip: {
+    position: 'absolute',
+    left: 0,
+    top: 0,
+    height: TRACK_HEIGHT,
+    borderRadius: 20,
+    overflow: 'hidden',
+  },
+  fillGradient: {
+    ...StyleSheet.absoluteFillObject,
+    borderRadius: 20,
+  },
+  fillStripeOverlay: {
+    position: 'absolute',
+    left: 0,
+    top: 0,
+    height: TRACK_HEIGHT,
+    overflow: 'hidden',
+  },
+  stripeTileRow: {
+    flexDirection: 'row',
+    height: TRACK_HEIGHT,
+  },
+  thumbOuter: {
+    position: 'absolute',
+    width: THUMB_SIZE,
+    height: THUMB_SIZE,
+    borderRadius: 50,
+    backgroundColor: 'rgba(203, 48, 224, 0.10)',
+    padding: 5,
+    top: 0,
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 2,
+  },
+  thumbMiddle: {
+    width: '100%',
+    height: '100%',
+    borderRadius: 30,
+    padding: 6,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#3F0054',
+    shadowOpacity: 0.2,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 3 },
+    elevation: 4,
+  },
+  thumbInner: {
+    width: 10,
+    height: 10,
+    borderRadius: 999,
+  },
+});
 
-  const [savedPercent, setSavedPercent] = useState(30);
-  const [years, setYears] = useState(20);
-  const [scenario, setScenario] = useState<'conservative' | 'average'>('average');
-
-  const monthlySubscriptions = monthlySpendTotal(items);
-  const hasData = monthlySubscriptions > 0;
-  const currency: CurrencyCode = (items[0]?.currency ?? 'USD') as CurrencyCode;
-  const monthlyBase = hasData ? monthlySubscriptions : 180;
-  const yearly = monthlyBase * 12;
-  const annualRate = scenario === 'conservative' ? 0.06 : 0.08;
-
-  const redirectedMonthly = monthlyBase * (savedPercent / 100);
-  const projectedValue = futureValue(redirectedMonthly, annualRate, years);
-  const totalContributed = redirectedMonthly * years * 12;
-  const growth = Math.max(0, projectedValue - totalContributed);
-
-  const projectedAnim = useAnimatedNumber(projectedValue);
-  const redirectedAnim = useAnimatedNumber(redirectedMonthly);
-
-  const chartPoints = useMemo(() => {
-    const arr: number[] = [];
-    for (let y = 1; y <= years; y += 1) arr.push(futureValue(redirectedMonthly, annualRate, y));
-    return arr;
-  }, [annualRate, redirectedMonthly, years]);
-
-  const optimizeMonthlySaved = useMemo(() => {
-    const active = items
-      .filter((i) => i.status === 'active' || i.status === 'trial')
-      .map((i) => subscriptionMonthlyEquivalent(i))
-      .sort((a, b) => b - a);
-    return (active[0] ?? 0) + (active[1] ?? 0);
-  }, [items]);
-
+function InfoFootnote() {
+  const icon =
+    Platform.OS === 'ios' ? (
+      <SFIcon name="info.circle.fill" size={14} color="#616161" weight="regular" />
+    ) : (
+      <Ionicons name="information-circle-outline" size={15} color="#616161" />
+    );
   return (
-    <TabScreenBackground variant="figma" edges={['left', 'right', 'bottom']}>
-      <ScrollView contentContainerStyle={s.content} showsVerticalScrollIndicator={false} contentInsetAdjustmentBehavior="automatic">
-        <SurfaceCard style={s.mainCard}>
-          <Text style={s.kicker}>Based on your spending</Text>
-          <Text style={s.spendLine}>You spend {formatMoney(monthlyBase, currency)}/month on subscriptions</Text>
-          <Text style={s.spendSub}>About {formatMoney(yearly, currency)} per year.</Text>
-          {!hasData ? <Text style={s.hint}>Add subscriptions to replace this estimate with your real data.</Text> : null}
-
-          <View style={s.heroBlock}>
-            <Text style={s.heroIntro}>If you saved {savedPercent}% of this</Text>
-            <Text style={s.heroSmall}>{formatMoney(redirectedAnim, currency)}/month redirected</Text>
-            <Text style={s.heroValue}>{formatMoney(projectedAnim, currency)}</Text>
-            <Text style={s.heroFoot}>Potential value in {years} years</Text>
-          </View>
-
-          <ProjectionChart points={chartPoints} />
-
-          <View style={s.summaryRows}>
-            <View style={s.summaryRow}><Text style={s.summaryKey}>Contributed</Text><Text style={s.summaryVal}>{formatMoney(totalContributed, currency)}</Text></View>
-            <View style={s.summaryRow}><Text style={s.summaryKey}>Estimated growth</Text><Text style={s.summaryVal}>{formatMoney(growth, currency)}</Text></View>
-            <View style={s.summaryRow}><Text style={s.summaryKey}>Projected total</Text><Text style={[s.summaryVal, s.summaryStrong]}>{formatMoney(projectedValue, currency)}</Text></View>
-          </View>
-        </SurfaceCard>
-
-        <SurfaceCard style={s.compactCard}>
-          <SliderRow
-            label="Saved from spending"
-            value={savedPercent}
-            min={10}
-            max={50}
-            suffix="%"
-            onChange={(v) => {
-              setSavedPercent(v);
-              void hapticSelection();
-            }}
-          />
-          <View style={{ height: 10 }} />
-          <SliderRow
-            label="Time horizon"
-            value={years}
-            min={1}
-            max={30}
-            suffix="y"
-            onChange={(v) => {
-              void hapticSelection();
-              setYears(v);
-            }}
-          />
-
-          <View style={s.segment}>
-            <Pressable
-              onPress={() => {
-                void hapticSelection();
-                setScenario('conservative');
-              }}
-              style={[s.segmentBtn, scenario === 'conservative' && s.segmentBtnActive]}
-            >
-              <Text style={[s.segmentText, scenario === 'conservative' && s.segmentTextActive]}>Conservative 6%</Text>
-            </Pressable>
-            <Pressable
-              onPress={() => {
-                void hapticSelection();
-                setScenario('average');
-              }}
-              style={[s.segmentBtn, scenario === 'average' && s.segmentBtnActive]}
-            >
-              <Text style={[s.segmentText, scenario === 'average' && s.segmentTextActive]}>Average 8%</Text>
-            </Pressable>
-          </View>
-        </SurfaceCard>
-
-        <SurfaceCard style={s.actionsCard}>
-          <View style={s.optimizeRow}>
-            <View style={{ flex: 1 }}>
-              <Text style={s.optimizeTitle}>Cancel 2 subscriptions and invest the difference</Text>
-              <Text style={s.optimizeSub}>You could free up {formatMoney(optimizeMonthlySaved, currency)}/month.</Text>
-            </View>
-            <Pressable
-              onPress={() => {
-                void hapticSelection();
-                navigation.navigate('Subscriptions');
-              }}
-              style={({ pressed }) => [s.reviewBtn, pressed && s.pressed]}
-            >
-              <Text style={s.reviewText}>Review</Text>
-            </Pressable>
-          </View>
-
-          <View style={s.linkList}>
-            <Pressable
-              onPress={() => {
-                void hapticSelection();
-                Linking.openURL(AFFILIATE_ROBINHOOD);
-              }}
-              style={({ pressed }) => [s.linkRow, pressed && s.pressed]}
-            >
-              <Text style={s.linkName}>Robinhood</Text>
-              <SFIcon name="arrow.up.right.square" size={16} color={INK} />
-            </Pressable>
-            <Pressable
-              onPress={() => {
-                void hapticSelection();
-                Linking.openURL(AFFILIATE_WEBULL);
-              }}
-              style={({ pressed }) => [s.linkRow, pressed && s.pressed]}
-            >
-              <Text style={s.linkName}>Webull</Text>
-              <SFIcon name="arrow.up.right.square" size={16} color={INK} />
-            </Pressable>
-          </View>
-
-          <Text style={s.affiliate}>Affiliate links. We may earn a commission.</Text>
-          <Text style={s.disclaimer}>Estimates are based on historical averages and are not financial advice.</Text>
-        </SurfaceCard>
-      </ScrollView>
-    </TabScreenBackground>
+    <View style={styles.disclosureRow}>
+      {icon}
+      <Text style={styles.disclosureText}>Based on average market returns (~7% annually)</Text>
+    </View>
   );
 }
 
-const s = StyleSheet.create({
-  content: { paddingHorizontal: spacing.screenX, paddingBottom: 40, gap: 10 },
-  pressed: { opacity: 0.75 },
+function PartnerRow({
+  logo,
+  name,
+  subtitle,
+  url,
+  isFirst = false,
+}: {
+  logo: React.ReactNode;
+  name: string;
+  subtitle: string;
+  url: string;
+  isFirst?: boolean;
+}) {
+  const open = useCallback(() => {
+    void hapticSelection();
+    void Linking.openURL(url);
+  }, [url]);
 
-  mainCard: { backgroundColor: CARD, borderRadius: radius.card, padding: spacing.cardPadding, gap: 8 },
-  kicker: { fontSize: 11, textTransform: 'uppercase', letterSpacing: 0.5, fontWeight: '700', color: DIM },
-  spendLine: { fontSize: 17, color: INK, fontWeight: '700', lineHeight: 23 },
-  spendSub: { fontSize: 13, color: DIM, fontWeight: '500' },
-  hint: { fontSize: 12, color: DIM, fontWeight: '500' },
+  return (
+    <View style={[styles.partnerCard, isFirst && styles.partnerCardFirst]}>
+      <View style={styles.partnerInner}>
+        <View style={styles.partnerLogoWrap}>{logo}</View>
+        <View style={styles.partnerMain}>
+          <View style={styles.partnerCopy}>
+            <Text style={styles.partnerName}>{name}</Text>
+            <Text style={styles.partnerSubtitle}>{subtitle}</Text>
+          </View>
+          <Pressable onPress={open} style={({ pressed }) => [styles.openAccount, pressed && styles.pressed]}>
+            <Text style={styles.openAccountText}>Open Account</Text>
+          </Pressable>
+        </View>
+      </View>
+    </View>
+  );
+}
 
-  heroBlock: { marginTop: 4, marginBottom: 4 },
-  heroIntro: { fontSize: 14, color: INK, fontWeight: '700' },
-  heroSmall: { fontSize: 13, color: DIM, fontWeight: '600', marginTop: 1 },
-  heroValue: { fontSize: 40, fontWeight: '800', color: INK, letterSpacing: -0.9, marginTop: 2 },
-  heroFoot: { fontSize: 12, color: DIM, fontWeight: '600', marginTop: 1 },
+function OurPartners() {
+  return (
+    <View style={styles.partnersSectionDebug}>
+      <Text style={styles.partnersHeading}>Our Partners</Text>
 
-  chartWrap: {
-    borderRadius: 12,
-    backgroundColor: '#F8F8FF',
-    borderWidth: 1,
-    borderColor: 'rgba(109,98,255,0.15)',
-    paddingHorizontal: 8,
-    paddingTop: 5,
-    paddingBottom: 2,
+      <PartnerRow
+        name="Webull"
+        subtitle="Advanced tools. Zero commission."
+        url={WEBULL_URL}
+        isFirst
+        logo={
+          <Image source={{ uri: WEBULL_LOGO_URI }} style={styles.partnerLogoImage} contentFit="contain" />
+        }
+      />
+
+      <PartnerRow
+        name="Robinhood"
+        subtitle="Simple way to start investing."
+        url={ROBINHOOD_URL}
+        logo={
+          <Image
+            source={{ uri: ROBINHOOD_LOGO_URI }}
+            style={styles.partnerLogoImage}
+            contentFit="contain"
+          />
+        }
+      />
+    </View>
+  );
+}
+
+function InvestHeroValue({ valueText }: { valueText: string }) {
+  return (
+    <View style={styles.hero}>
+      <Text style={styles.label}>Est. value in 10 years</Text>
+      <Text style={styles.heroAmount}>{valueText}</Text>
+    </View>
+  );
+}
+
+export function InvestScreen() {
+  const insets = useSafeAreaInsets();
+  const { height: windowHeight } = useWindowDimensions();
+  const subs = useSubscriptionsStore((s) => s.items);
+  const currency = subs[0]?.currency ?? 'USD';
+  const subsMonthly = monthlySpendTotal(subs);
+
+  const maxMonthly = subsMonthly > 0 ? subsMonthly : DEMO_MAX_MONTHLY;
+  const [sliderNorm, setSliderNorm] = useState(0.5);
+  const [trackWidth, setTrackWidth] = useState(0);
+  const [scrollEnabled, setScrollEnabled] = useState(true);
+
+  const subsMonthlyKey = Math.round(subsMonthly * 100) / 100;
+  useEffect(() => {
+    setSliderNorm(0.5);
+  }, [subsMonthlyKey, subs.length]);
+
+  const monthlyInvest = useMemo(
+    () => Math.max(0, Math.round(sliderNorm * maxMonthly)),
+    [sliderNorm, maxMonthly]
+  );
+
+  const projected = useMemo(
+    () => Math.round(futureValueMonthly(monthlyInvest, ANNUAL_RETURN, MONTHS)),
+    [monthlyInvest]
+  );
+
+  return (
+    <ScrollView
+      style={styles.scroll}
+      scrollEnabled={scrollEnabled}
+      contentContainerStyle={[
+        styles.content,
+        {
+          minHeight: Platform.OS === 'ios' ? windowHeight + 1 : windowHeight,
+          paddingBottom: insets.bottom + 24,
+        },
+      ]}
+      showsVerticalScrollIndicator={false}
+      contentInsetAdjustmentBehavior={Platform.OS === 'ios' ? 'automatic' : undefined}
+      alwaysBounceVertical
+      bounces
+    >
+      <InvestHeroValue valueText={formatMoney(projected, currency as any)} />
+
+      <View style={styles.calculatorSection}>
+        <View style={styles.monthlyInputGroup}>
+          <View style={styles.monthlyRow}>
+            <Text style={styles.monthlyLabel}>Monthly investment</Text>
+            <View style={styles.amountPill}>
+              <Text style={styles.amountPillText}>
+                {formatMoney(monthlyInvest, currency as any)}/m
+              </Text>
+            </View>
+          </View>
+        </View>
+
+        <View
+          onLayout={(e) => setTrackWidth(e.nativeEvent.layout.width)}
+          style={styles.sliderTrackHost}
+        >
+          {trackWidth > 0 ? (
+            <InvestSlider
+              value={sliderNorm}
+              onChange={setSliderNorm}
+              trackWidth={trackWidth}
+              onInteractionStart={() => setScrollEnabled(false)}
+              onInteractionEnd={() => setScrollEnabled(true)}
+            />
+          ) : (
+            <View style={{ height: THUMB_SIZE }} />
+          )}
+        </View>
+
+        <InfoFootnote />
+      </View>
+
+      <OurPartners />
+
+      <Text style={styles.riskFoot}>
+        Not financial advice. Investing involves risk.{'\n'}
+        We may earn a referral fee
+      </Text>
+    </ScrollView>
+  );
+}
+
+const styles = StyleSheet.create({
+  scroll: { flex: 1 },
+  /** Keep Home card rhythm, but match Subscriptions vertical start. */
+  content: { paddingHorizontal: spacing.screenX, paddingTop: 4 },
+
+  /** Match Subscriptions `spendingBlock` position exactly. */
+  hero: {
+    alignSelf: 'stretch',
+    alignItems: 'flex-start',
+    paddingHorizontal: figma.subscriptions273.textColumnGutterX,
+    marginTop:
+      figma.subscriptions273.titleToSpendingGroupGap -
+      figma.subscriptions273.spendingGroupPredecessorStack,
+    marginBottom: 0,
+  },
+  /** Match Subscriptions `spendingContext` ("Spending in April"). */
+  label: {
+    fontFamily: 'SF Pro Display',
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#000000',
+    lineHeight: 19,
+    marginBottom: figma.subscriptions273.spendingGroupRowGap,
+    textAlign: 'left',
+    alignSelf: 'stretch',
+  },
+  /** Match Subscriptions `spendingHeroAmount` scale/metrics. */
+  heroAmount: {
+    fontFamily: 'BricolageGrotesque_800ExtraBold',
+    fontSize: figma.heroNumber.fontSize,
+    color: '#0B0803',
+    lineHeight: figma.heroNumber.lineHeight,
+    letterSpacing: figma.heroNumber.letterSpacing,
+    textAlign: 'left',
+    alignSelf: 'stretch',
   },
 
-  summaryRows: { marginTop: 4, gap: 2 },
-  summaryRow: {
+  /** HomeScreen `card` */
+  card: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: radius.card,
+    paddingHorizontal: 18,
+    paddingTop: 16,
+    paddingBottom: 14,
+    marginTop: 16,
+  },
+  /** Partner cards use same card shell, but no extra internal card padding. */
+  partnerCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: radius.card,
+    marginTop: 12,
+    overflow: 'hidden',
+  },
+  partnerCardFirst: {
+    marginTop: 0,
+  },
+  /** Calculator section (plain text/controls), aligned to Est value text column. */
+  calculatorSection: {
+    paddingHorizontal: figma.subscriptions273.textColumnGutterX,
+    paddingTop: 0,
+    paddingBottom: 0,
+    marginTop: 32,
+    marginBottom: 32,
+    marginHorizontal: 0,
+  },
+  pressed: { opacity: 0.84 },
+
+  monthlyRow: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
-    paddingVertical: 5,
-    borderBottomWidth: 1,
-    borderBottomColor: SEP,
+    justifyContent: 'space-between',
+    gap: 12,
   },
-  summaryKey: { fontSize: 13, color: DIM, fontWeight: '500' },
-  summaryVal: { fontSize: 14, color: INK, fontWeight: '700' },
-  summaryStrong: { color: GREEN, fontWeight: '800' },
-
-  compactCard: { backgroundColor: CARD, borderRadius: radius.card, padding: 14, gap: 8 },
-  sliderHead: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  sliderLabel: { fontSize: 13, color: DIM, fontWeight: '600' },
-  sliderValue: { fontSize: 13, color: INK, fontWeight: '800' },
-  sliderTrackBox: { width: 260, height: 24, justifyContent: 'center' },
-  sliderTrack: { position: 'absolute', width: 260, height: 5, borderRadius: 3, backgroundColor: 'rgba(11,8,3,0.1)' },
-  sliderFill: { position: 'absolute', height: 5, borderRadius: 3, backgroundColor: ACCENT },
-  sliderThumb: {
-    position: 'absolute',
-    width: 18,
-    height: 18,
-    borderRadius: 9,
-    backgroundColor: ACCENT,
-    borderWidth: 2,
-    borderColor: '#fff',
+  monthlyInputGroup: {
+    marginBottom: 8,
   },
-
-  segment: { flexDirection: 'row', backgroundColor: BG, borderRadius: 12, padding: 3, gap: 4, marginTop: 2 },
-  segmentBtn: { flex: 1, borderRadius: 9, paddingVertical: 7, alignItems: 'center' },
-  segmentBtnActive: { backgroundColor: INK },
-  segmentText: { fontSize: 12, fontWeight: '700', color: DIM },
-  segmentTextActive: { color: '#fff' },
-
-  actionsCard: { backgroundColor: CARD, borderRadius: radius.card, padding: 14, gap: 10 },
-  optimizeRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  optimizeTitle: { fontSize: 14, fontWeight: '700', color: INK, lineHeight: 19 },
-  optimizeSub: { fontSize: 12, color: DIM, fontWeight: '500', marginTop: 1 },
-  reviewBtn: {
-    backgroundColor: INK,
-    borderRadius: 10,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
+  monthlyLabel: {
+    fontFamily: 'SF Pro Display',
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#616161',
+    flex: 1,
   },
-  reviewText: { color: '#fff', fontSize: 12, fontWeight: '700' },
-
-  linkList: {
-    borderTopWidth: 1,
-    borderTopColor: SEP,
-    paddingTop: 6,
+  amountPill: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    alignItems: 'center',
     gap: 4,
+    backgroundColor: 'rgba(255, 255, 255, 0.60)',
+    borderWidth: 1,
+    borderColor: 'rgba(0, 0, 0, 0.05)',
+    borderRadius: 12,
+    padding: 10,
   },
-  linkRow: {
+  amountPillText: {
+    fontFamily: 'SF Pro Display',
+    fontSize: 16,
+    fontWeight: '700',
+    lineHeight: 16,
+    textAlign: 'center',
+    color: '#000000',
+  },
+
+  sliderTrackHost: {
+    alignSelf: 'stretch',
+    marginBottom: 10,
+  },
+
+  disclosureRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  disclosureText: {
+    flex: 1,
+    fontFamily: 'SF Pro Display',
+    fontSize: 11,
+    fontWeight: '500',
+    color: '#616161',
+  },
+
+  partnersHeading: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#616161',
+    paddingHorizontal: 20,
+    marginTop: 0,
+    marginBottom: 7,
+  },
+  partnersSectionDebug: {},
+
+  partnerInner: {
+    flexDirection: 'row',
+    alignItems: 'stretch',
+    paddingLeft: 20,
+    paddingRight: 20,
+    paddingTop: 20,
+    paddingBottom: 20,
+  },
+  partnerLogoWrap: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#E8E8E8',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 12,
+    alignSelf: 'center',
+    flexShrink: 0,
+  },
+  brandOrb: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  partnerLogoImage: {
+    width: 36,
+    height: 36,
+  },
+  partnerMain: {
+    flex: 1,
+    minWidth: 0,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingVertical: 8,
+    gap: 12,
   },
-  linkName: { fontSize: 14, fontWeight: '700', color: INK },
+  partnerCopy: {
+    flex: 1,
+    minWidth: 0,
+  },
+  partnerName: {
+    fontFamily: 'SF Pro Display',
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#171717',
+  },
+  partnerSubtitle: {
+    fontFamily: 'SF Pro Display',
+    fontSize: 14,
+    fontWeight: '500',
+    color: '#616161',
+    marginTop: 4,
+    lineHeight: 17,
+  },
+  openAccount: {
+    backgroundColor: '#0B0803',
+    minHeight: 40,
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    borderRadius: 999,
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexShrink: 0,
+    alignSelf: 'center',
+  },
+  openAccountText: {
+    fontFamily: 'SF Pro Display',
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#FFFFFF',
+  },
 
-  affiliate: { fontSize: 11, color: DIM },
-  disclaimer: { fontSize: 11, color: DIM },
+  riskFoot: {
+    fontFamily: 'SF Pro Display',
+    fontSize: 11,
+    fontWeight: '500',
+    color: '#616161',
+    lineHeight: 14,
+    textAlign: 'left',
+    marginTop: 16,
+    paddingHorizontal: 20,
+  },
 });

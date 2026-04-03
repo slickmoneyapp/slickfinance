@@ -1,16 +1,32 @@
 import { StatusBar } from 'expo-status-bar';
 import React, { useEffect } from 'react';
-import { Platform, Pressable } from 'react-native';
-import { useFonts, BricolageGrotesque_800ExtraBold } from '@expo-google-fonts/bricolage-grotesque';
+import {
+  Image as RNImage,
+  Platform,
+  StyleSheet,
+  useWindowDimensions,
+  View,
+} from 'react-native';
+import { Image } from 'expo-image';
+import {
+  useFonts,
+  BricolageGrotesque_800ExtraBold,
+} from '@expo-google-fonts/bricolage-grotesque';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeBottomTabNavigator } from '@bottom-tabs/react-navigation';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
-
-import { SafeAreaProvider } from 'react-native-safe-area-context';
+import type { NativeStackNavigationOptions } from '@react-navigation/native-stack';
+import { HeaderButton } from '@react-navigation/elements';
+import Ionicons from '@expo/vector-icons/Ionicons';
+import type { NativeStackHeaderItem } from '@react-navigation/native-stack';
+import {
+  SafeAreaProvider,
+  initialWindowMetrics,
+} from 'react-native-safe-area-context';
+import * as SplashScreen from 'expo-splash-screen';
 import { adapty } from 'react-native-adapty';
 
 import { SubscriptionsSkeleton } from './src/components/Skeleton';
-import { SFIcon } from './src/components/SFIcon';
 import { BudgetScreen } from './src/screens/BudgetScreen';
 import { SubscriptionsScreen } from './src/screens/SubscriptionsScreen';
 import { InvestScreen } from './src/screens/InvestScreen';
@@ -30,7 +46,77 @@ import { useAuthStore } from './src/features/auth/store';
 import { useSubscriptionsStore } from './src/features/subscriptions/store';
 import { usePremiumStore } from './src/features/premium/store';
 import { navigateRoot } from './src/navigation/navigateRoot';
-import { hapticImpact } from './src/ui/haptics';
+import { hapticImpact, hapticSelection } from './src/ui/haptics';
+import { stackHeaderLargeTitleStyle } from './src/constants/fonts';
+import { TAB_SCREEN_BACKGROUND } from './src/assets/tabBackground';
+
+SplashScreen.preventAutoHideAsync();
+
+// ─── iOS version detection ────────────────────────────────────────────────────
+
+const iosMajor =
+  Platform.OS === 'ios' ? parseInt(String(Platform.Version), 10) : 0;
+
+// ─── Shared native stack header options ───────────────────────────────────────
+
+const stackScreenOptions: NativeStackNavigationOptions = {
+  autoHideHomeIndicator: false,
+  headerLargeTitle: true,
+  headerTransparent: true,
+  headerShadowVisible: false,
+  headerLargeTitleShadowVisible: false,
+  headerStyle: { backgroundColor: 'transparent' },
+  headerLargeStyle: { backgroundColor: 'transparent' },
+  headerTintColor: '#007AFF',
+  headerLargeTitleStyle: stackHeaderLargeTitleStyle,
+  headerTitleStyle: {
+    fontWeight: '600',
+    color: '#000',
+  },
+  contentStyle: { backgroundColor: 'transparent' },
+  ...(iosMajor >= 26
+    ? {
+        scrollEdgeEffects: {
+          top: 'automatic',
+          bottom: 'automatic',
+          left: 'automatic',
+          right: 'automatic',
+        },
+      }
+    : iosMajor > 0
+      ? { headerBlurEffect: 'systemChromeMaterial' as const }
+      : {}),
+};
+
+// ─── Native nav bar “Add” (iOS: real UIBarButtonItem + SF Symbol — system sizing) ─
+
+function makePlusToolbarOptions(
+  onPress: () => void,
+): NativeStackNavigationOptions {
+  if (Platform.OS === 'ios') {
+    return {
+      unstable_headerRightItems: (): NativeStackHeaderItem[] => [
+        {
+          type: 'button',
+          label: '',
+          icon: { type: 'sfSymbol', name: 'plus.circle.fill' },
+          tintColor: '#000',
+          accessibilityLabel: 'Add',
+          onPress,
+        },
+      ],
+    };
+  }
+  return {
+    headerRight: () => (
+      <HeaderButton accessibilityLabel="Add" onPress={onPress}>
+        <Ionicons name="add-circle" size={28} color="#000" />
+      </HeaderButton>
+    ),
+  };
+}
+
+// ─── Type definitions ─────────────────────────────────────────────────────────
 
 export type RootTabsParamList = {
   Subscriptions: undefined;
@@ -39,7 +125,6 @@ export type RootTabsParamList = {
   Settings: undefined;
 };
 
-const Tabs = createNativeBottomTabNavigator<RootTabsParamList>();
 export type RootStackParamList = {
   Tabs: undefined;
   AddSubscription: undefined;
@@ -47,109 +132,200 @@ export type RootStackParamList = {
   EditSubscription: { subscriptionId: string };
   Paywall: undefined;
 };
+
+// ─── Navigators ───────────────────────────────────────────────────────────────
+
+const Tabs = createNativeBottomTabNavigator<RootTabsParamList>();
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
 type SubsStackParamList = { SubscriptionsList: undefined };
 const SubsStack = createNativeStackNavigator<SubsStackParamList>();
 
-function SubscriptionsStackScreen() {
+type BudgetStackParamList = { BudgetMain: undefined };
+const BudgetStackNav = createNativeStackNavigator<BudgetStackParamList>();
+
+type InvestStackParamList = { InvestMain: undefined };
+const InvestStackNav = createNativeStackNavigator<InvestStackParamList>();
+
+type ProfileStackParamList = { ProfileMain: undefined };
+const ProfileStackNav = createNativeStackNavigator<ProfileStackParamList>();
+
+// ─── Per-tab background wrapper ───────────────────────────────────────────────
+
+function TabStackWrapper({ children }: { children: React.ReactNode }) {
+  const { width: screenWidth } = useWindowDimensions();
+  const resolved = RNImage.resolveAssetSource(TAB_SCREEN_BACKGROUND);
+  const aspect =
+    resolved?.width && resolved?.height ? resolved.height / resolved.width : 0.81;
+  const bgHeight = Math.round(screenWidth * aspect);
+
   return (
-    <SubsStack.Navigator>
-      <SubsStack.Screen
-        name="SubscriptionsList"
-        component={SubscriptionsScreen}
-        options={({ navigation }) => ({
-          title: 'Subscriptions',
-          headerLargeTitle: true,
-          headerTransparent: true,
-          headerLargeStyle: { backgroundColor: 'transparent' },
-          headerStyle: { backgroundColor: 'transparent' },
-          headerShadowVisible: false,
-          headerRight: () => (
-            <Pressable
-              onPress={() => {
-                void hapticImpact();
-                navigateRoot(navigation as any, 'AddSubscription');
-              }}
-              hitSlop={8}
-              accessibilityRole="button"
-              accessibilityLabel="Add subscription"
-              style={{ paddingHorizontal: 2, paddingVertical: 2 }}
-            >
-              <SFIcon name="plus" size={20} color="#007AFF" weight="semibold" />
-            </Pressable>
-          ),
-        })}
-      />
-    </SubsStack.Navigator>
+    <View style={tabWrapStyles.root}>
+      <View style={tabWrapStyles.bgLayer} pointerEvents="none">
+        <Image
+          source={TAB_SCREEN_BACKGROUND}
+          style={{ width: screenWidth, height: bgHeight }}
+          contentFit="cover"
+          cachePolicy="memory-disk"
+          transition={0}
+          recyclingKey="tab-screen-bg"
+        />
+      </View>
+      {children}
+    </View>
   );
 }
 
-type BudgetStackParamList = { BudgetMain: undefined };
-const BudgetStack = createNativeStackNavigator<BudgetStackParamList>();
+const tabWrapStyles = StyleSheet.create({
+  root: { flex: 1, backgroundColor: '#F5F5F5' },
+  bgLayer: { position: 'absolute', top: 0, left: 0, right: 0 },
+});
+
+// ─── Per-tab stack screens ────────────────────────────────────────────────────
+
+function SubscriptionsStackScreen() {
+  return (
+    <TabStackWrapper>
+      <SubsStack.Navigator
+        screenOptions={({ navigation }) => ({
+          ...stackScreenOptions,
+          ...makePlusToolbarOptions(() => {
+            void hapticImpact();
+            navigateRoot(navigation as any, 'AddSubscription');
+          }),
+        })}
+      >
+        <SubsStack.Screen
+          name="SubscriptionsList"
+          component={SubscriptionsScreen}
+          options={{ title: 'Subscriptions' }}
+        />
+      </SubsStack.Navigator>
+    </TabStackWrapper>
+  );
+}
 
 function BudgetStackScreen() {
   return (
-    <BudgetStack.Navigator>
-      <BudgetStack.Screen
-        name="BudgetMain"
-        component={BudgetScreen}
-        options={{
-          title: 'Budget',
-          headerLargeTitle: true,
-          headerTransparent: true,
-          headerLargeStyle: { backgroundColor: 'transparent' },
-          headerStyle: { backgroundColor: 'transparent' },
-          headerShadowVisible: false,
-        }}
-      />
-    </BudgetStack.Navigator>
+    <TabStackWrapper>
+      <BudgetStackNav.Navigator
+        screenOptions={({ navigation }) => ({
+          ...stackScreenOptions,
+          ...makePlusToolbarOptions(() => {
+            void hapticImpact();
+            navigateRoot(navigation as any, 'AddSubscription');
+          }),
+        })}
+      >
+        <BudgetStackNav.Screen
+          name="BudgetMain"
+          component={BudgetScreen}
+          options={{ title: 'Budget' }}
+        />
+      </BudgetStackNav.Navigator>
+    </TabStackWrapper>
   );
 }
-
-type InvestStackParamList = { InvestMain: undefined };
-const InvestStack = createNativeStackNavigator<InvestStackParamList>();
 
 function InvestStackScreen() {
   return (
-    <InvestStack.Navigator>
-      <InvestStack.Screen
-        name="InvestMain"
-        component={InvestScreen}
-        options={{
-          title: 'Invest',
-          headerLargeTitle: true,
-          headerTransparent: true,
-          headerLargeStyle: { backgroundColor: 'transparent' },
-          headerStyle: { backgroundColor: 'transparent' },
-          headerShadowVisible: false,
-        }}
-      />
-    </InvestStack.Navigator>
+    <TabStackWrapper>
+      <InvestStackNav.Navigator
+        screenOptions={({ navigation }) => ({
+          ...stackScreenOptions,
+          ...makePlusToolbarOptions(() => {
+            void hapticImpact();
+            navigateRoot(navigation as any, 'AddSubscription');
+          }),
+        })}
+      >
+        <InvestStackNav.Screen
+          name="InvestMain"
+          component={InvestScreen}
+          options={{ title: 'Invest' }}
+        />
+      </InvestStackNav.Navigator>
+    </TabStackWrapper>
   );
 }
-
-type ProfileStackParamList = { ProfileMain: undefined };
-const ProfileStack = createNativeStackNavigator<ProfileStackParamList>();
 
 function ProfileStackScreen() {
   return (
-    <ProfileStack.Navigator>
-      <ProfileStack.Screen
-        name="ProfileMain"
-        component={SettingsScreen}
-        options={{
-          title: 'Profile',
-          headerLargeTitle: true,
-          headerTransparent: true,
-          headerLargeStyle: { backgroundColor: 'transparent' },
-          headerStyle: { backgroundColor: 'transparent' },
-          headerShadowVisible: false,
-        }}
-      />
-    </ProfileStack.Navigator>
+    <TabStackWrapper>
+      <ProfileStackNav.Navigator
+        screenOptions={({ navigation }) => ({
+          ...stackScreenOptions,
+          ...makePlusToolbarOptions(() => {
+            void hapticImpact();
+            navigateRoot(navigation as any, 'AddSubscription');
+          }),
+        })}
+      >
+        <ProfileStackNav.Screen
+          name="ProfileMain"
+          component={SettingsScreen}
+          options={{ title: 'Profile' }}
+        />
+      </ProfileStackNav.Navigator>
+    </TabStackWrapper>
   );
 }
+
+// ─── Tab navigator ────────────────────────────────────────────────────────────
+
+function tabBarIconSfSymbol(sfSymbol: string) {
+  return () => ({ sfSymbol: sfSymbol as any });
+}
+
+function RootTabs() {
+  return (
+    <Tabs.Navigator
+      tabBarActiveTintColor="#CB30E0"
+      tabBarInactiveTintColor="#8C8C8C"
+      screenListeners={{
+        tabPress: () => {
+          void hapticSelection();
+        },
+      }}
+    >
+      <Tabs.Screen
+        name="Subscriptions"
+        component={SubscriptionsStackScreen}
+        options={{
+          tabBarIcon: tabBarIconSfSymbol('creditcard'),
+        }}
+      />
+      {ENABLE_BUDGET_TAB ? (
+        <Tabs.Screen
+          name="Budget"
+          component={BudgetStackScreen}
+          options={{
+            tabBarIcon: tabBarIconSfSymbol('chart.pie'),
+          }}
+        />
+      ) : null}
+      {ENABLE_INVEST_TAB ? (
+        <Tabs.Screen
+          name="Invest"
+          component={InvestStackScreen}
+          options={{
+            tabBarIcon: tabBarIconSfSymbol('chart.line.uptrend.xyaxis'),
+          }}
+        />
+      ) : null}
+      <Tabs.Screen
+        name="Settings"
+        component={ProfileStackScreen}
+        options={{
+          title: 'Profile',
+          tabBarIcon: tabBarIconSfSymbol('person.circle'),
+        }}
+      />
+    </Tabs.Navigator>
+  );
+}
+
+// ─── App inner (auth + business logic) ────────────────────────────────────────
 
 function AppInner() {
   const [fontsLoaded] = useFonts({ BricolageGrotesque_800ExtraBold });
@@ -159,6 +335,12 @@ function AppInner() {
   const checkAccess = usePremiumStore((s) => s.checkAccess);
   const setIsPremium = usePremiumStore((s) => s.setIsPremium);
   useNotificationSync();
+
+  useEffect(() => {
+    if (fontsLoaded && initialized) {
+      SplashScreen.hideAsync();
+    }
+  }, [fontsLoaded, initialized]);
 
   useEffect(() => {
     if (!session) return;
@@ -173,7 +355,9 @@ function AppInner() {
       const hasAccess = profile.accessLevels?.['premium']?.isActive === true;
       setIsPremium(hasAccess);
     });
-    return () => { listener.remove(); };
+    return () => {
+      listener.remove();
+    };
   }, [session, checkAccess, setIsPremium]);
 
   if (!fontsLoaded || !initialized) {
@@ -198,7 +382,11 @@ function AppInner() {
     <>
       <StatusBar style="dark" />
       <Stack.Navigator initialRouteName="Tabs">
-        <Stack.Screen name="Tabs" component={RootTabs} options={{ headerShown: false }} />
+        <Stack.Screen
+          name="Tabs"
+          component={RootTabs}
+          options={{ headerShown: false }}
+        />
         <Stack.Screen
           name="AddSubscription"
           component={AddSubscriptionScreen}
@@ -241,6 +429,8 @@ function AppInner() {
   );
 }
 
+// ─── Root component ───────────────────────────────────────────────────────────
+
 export default function App() {
   const initializeAuth = useAuthStore((s) => s.initialize);
 
@@ -261,53 +451,10 @@ export default function App() {
   }, [initializeAuth]);
 
   return (
-    <SafeAreaProvider>
+    <SafeAreaProvider initialMetrics={initialWindowMetrics}>
       <NavigationContainer>
         <AppInner />
       </NavigationContainer>
     </SafeAreaProvider>
-  );
-}
-
-function RootTabs() {
-  return (
-    <Tabs.Navigator
-      tabBarActiveTintColor="#CB30E0"
-      tabBarInactiveTintColor="#8C8C8C"
-    >
-      <Tabs.Screen
-        name="Subscriptions"
-        component={SubscriptionsStackScreen}
-        options={{
-          tabBarIcon: () => ({ sfSymbol: 'creditcard' }),
-        }}
-      />
-      {ENABLE_BUDGET_TAB ? (
-        <Tabs.Screen
-          name="Budget"
-          component={BudgetStackScreen}
-          options={{
-            tabBarIcon: () => ({ sfSymbol: 'chart.pie' }),
-          }}
-        />
-      ) : null}
-      {ENABLE_INVEST_TAB ? (
-        <Tabs.Screen
-          name="Invest"
-          component={InvestStackScreen}
-          options={{
-            tabBarIcon: () => ({ sfSymbol: 'chart.line.uptrend.xyaxis' as any }),
-          }}
-        />
-      ) : null}
-      <Tabs.Screen
-        name="Settings"
-        component={ProfileStackScreen}
-        options={{
-          title: 'Profile',
-          tabBarIcon: () => ({ sfSymbol: 'person.circle' }),
-        }}
-      />
-    </Tabs.Navigator>
   );
 }

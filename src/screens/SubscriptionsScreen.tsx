@@ -5,8 +5,10 @@ import {
   type ListRenderItemInfo,
   Platform,
   Pressable,
+  ScrollView,
   StyleSheet,
   Text,
+  useWindowDimensions,
   View,
 } from 'react-native';
 import { SFIcon } from '../components/SFIcon';
@@ -16,7 +18,6 @@ import { colors, figma } from '../ui/theme';
 import type { NavigationProp } from '@react-navigation/native';
 import { navigateRoot } from '../navigation/navigateRoot';
 import { CompanyLogo } from '../components/CompanyLogo';
-import { TabScreenBackground } from '../components/TabScreenBackground';
 import {
   useSubscriptionsStore,
   selectVisibleSubscriptions,
@@ -78,6 +79,7 @@ const SORT_OPTIONS: MenuOption<SubscriptionSort>[] = [
 // ─── Screen ───────────────────────────────────────────────────────────────────
 export function SubscriptionsScreen({ navigation }: Props) {
   const insets = useSafeAreaInsets();
+  const { height: windowHeight } = useWindowDimensions();
   const items     = useSubscriptionsStore((s) => s.items);
   const sort      = useSubscriptionsStore((s) => s.sort);
   const filter    = useSubscriptionsStore((s) => s.filter);
@@ -149,12 +151,18 @@ export function SubscriptionsScreen({ navigation }: Props) {
     );
   };
 
-  return (
-    <TabScreenBackground variant="figma" edges={['left', 'right', 'bottom']} disableSafeAreaView>
-      <View style={s.root}>
-      {hydrated && items.length === 0 ? (
-        <View style={s.emptyStateWrap}>
-          <View style={s.emptyStateCard}>
+  return hydrated && items.length === 0 ? (
+      <ScrollView
+        style={{ flex: 1 }}
+        contentContainerStyle={[
+          s.emptyStateWrap,
+          { minHeight: Platform.OS === 'ios' ? windowHeight + 1 : windowHeight },
+        ]}
+        contentInsetAdjustmentBehavior={Platform.OS === 'ios' ? 'automatic' : undefined}
+        alwaysBounceVertical
+        bounces
+      >
+        <View style={s.emptyStateCard}>
             <View style={s.emptyStateIconCircle}>
               <SFIcon name="doc.text" size={36} color={colors.textMuted} />
             </View>
@@ -173,20 +181,22 @@ export function SubscriptionsScreen({ navigation }: Props) {
               <Text style={s.emptyStateCtaText}>Add Your First Subscription</Text>
             </Pressable>
           </View>
-        </View>
-      ) : (
-        <FlatList
+      </ScrollView>
+    ) : (
+      <FlatList
           style={{ flex: 1 }}
           data={listData}
           keyExtractor={(item) => item.id}
           renderItem={renderSubscriptionRow}
           showsVerticalScrollIndicator={false}
-          contentInsetAdjustmentBehavior="automatic"
+          contentInsetAdjustmentBehavior={Platform.OS === 'ios' ? 'automatic' : undefined}
           alwaysBounceVertical
+          bounces
           scrollEventThrottle={16}
           contentContainerStyle={[
             s.listContent,
             {
+              minHeight: Platform.OS === 'ios' ? windowHeight + 1 : windowHeight,
               paddingBottom: insets.bottom + 16,
             },
           ]}
@@ -293,11 +303,7 @@ export function SubscriptionsScreen({ navigation }: Props) {
             )
           }
         />
-      )}
-
-      </View>
-    </TabScreenBackground>
-  );
+    );
 }
 
 // ─── Shared helpers ───────────────────────────────────────────────────────────
@@ -319,7 +325,7 @@ function SubscriptionRow({ sub, onPressItem }: { sub: Subscription; onPressItem:
     >
       <View style={s.logoCircle}>
         {sub.domain ? (
-          <CompanyLogo domain={sub.domain} size={42} rounded={10} fallbackText={sub.serviceName} />
+          <CompanyLogo domain={sub.domain} size={28} rounded={14} fallbackText={sub.serviceName} />
         ) : (
           <FallbackLogo name={sub.serviceName} />
         )}
@@ -486,7 +492,7 @@ const s = StyleSheet.create({
   sepFull: {
     height: StyleSheet.hairlineWidth,
     backgroundColor: IOS_SEPARATOR,
-    marginLeft: 90,
+    marginLeft: 86,
     marginRight: figma.subscriptions273.rowPaddingH,
   },
 
@@ -495,19 +501,18 @@ const s = StyleSheet.create({
     alignItems: 'center',
     gap: figma.subscriptions273.rowGap,
     paddingHorizontal: figma.subscriptions273.rowPaddingH,
-    paddingVertical: 18,
-    minHeight: 96,
+    paddingVertical: 16,
   },
   subRowPressed: {
     backgroundColor: IOS_ROW_HIGHLIGHT,
   },
   logoCircle: {
-    width: 68,
-    height: 68,
-    borderRadius: 34,
+    width: 56,
+    height: 56,
+    borderRadius: 28,
     backgroundColor: colors.surface,
     borderWidth: 1,
-    borderColor: iosDynamic('rgba(60, 60, 67, 0.18)', 'rgba(84, 84, 88, 0.6)', figma.border.default),
+    borderColor: '#E8E8E8',
     alignItems: 'center',
     justifyContent: 'center',
     overflow: 'hidden',
@@ -520,8 +525,8 @@ const s = StyleSheet.create({
   },
   rowName: {
     fontFamily: 'SF Pro Display',
-    fontSize: 17,
-    lineHeight: 22,
+    fontSize: 16,
+    lineHeight: 21,
     fontWeight: '600',
     color: IOS_PRIMARY_LABEL,
     textAlign: 'left',
@@ -530,8 +535,8 @@ const s = StyleSheet.create({
   rowBillingLine: {
     marginTop: 2,
     fontFamily: 'SF Pro Display',
-    fontSize: 16,
-    lineHeight: 21,
+    fontSize: 14,
+    lineHeight: 19,
     fontWeight: '500',
     color: IOS_SECONDARY_LABEL,
     textAlign: 'left',
@@ -544,8 +549,8 @@ const s = StyleSheet.create({
   },
   rowPriceRight: {
     fontFamily: 'SF Pro Display',
-    fontSize: 17,
-    lineHeight: 22,
+    fontSize: 16,
+    lineHeight: 21,
     fontWeight: '600',
     color: IOS_PRIMARY_LABEL,
     textAlign: 'right',
@@ -554,16 +559,16 @@ const s = StyleSheet.create({
   rowStatusText: {
     marginTop: 2,
     fontFamily: 'SF Pro Display',
-    fontSize: 16,
-    lineHeight: 21,
+    fontSize: 14,
+    lineHeight: 19,
     fontWeight: '500',
     textAlign: 'right',
     ...androidTextFix,
   },
   fallbackLogoInner: {
-    width: 42,
-    height: 42,
-    borderRadius: 12,
+    width: 28,
+    height: 28,
+    borderRadius: 14,
     backgroundColor: BG,
     alignItems: 'center',
     justifyContent: 'center',

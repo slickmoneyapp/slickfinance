@@ -4,7 +4,6 @@ import { SFIcon } from '../components/SFIcon';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { CompanyLogo } from '../components/CompanyLogo';
 import type { RootStackParamList } from '../../App';
-import type { HomeStackParamList } from '../navigation/HomeStack';
 import { TabScreenBackground } from '../components/TabScreenBackground';
 import { IconCircleButton } from '../ui/components';
 import { hapticSelection } from '../ui/haptics';
@@ -21,7 +20,8 @@ import {
 import { navigateRoot } from '../navigation/navigateRoot';
 import { useMonthlySpendCountFromOnFocus } from '../hooks/useMonthlySpendCountFromOnFocus';
 
-/** Home is mounted either as root stack (Figma) or as `HomeMain` inside `HomeStack` (tabs). */
+type HomeStackParamList = { HomeMain: undefined };
+
 type Props =
   | NativeStackScreenProps<RootStackParamList, 'Home'>
   | NativeStackScreenProps<HomeStackParamList, 'HomeMain'>;
