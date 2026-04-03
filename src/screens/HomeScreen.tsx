@@ -148,7 +148,7 @@ export function HomeScreen({ navigation }: Props) {
                   {top3.map((s, idx) => (
                     <LogoBubble key={s.id} overlap={idx !== 0}>
                       {s.domain ? (
-                        <CompanyLogo domain={s.domain} size={30} rounded={8} fallbackText={s.serviceName} />
+                        <CompanyLogo domain={s.domain} size={32} rounded={8} fallbackText={s.serviceName} />
                       ) : (
                         <View style={styles.logoFallback}>
                           <Text style={styles.logoFallbackText}>{(s.serviceName.trim()[0] ?? '?').toUpperCase()}</Text>
@@ -277,7 +277,7 @@ const styles = StyleSheet.create({
 
   logoStack: { position: 'absolute', right: 20, top: 42, flexDirection: 'row', alignItems: 'center' },
   logoBubble: { width: 56, height: 56, borderRadius: 28, borderWidth: 1, borderColor: '#E8E8E8', backgroundColor: '#FFFFFF', alignItems: 'center', justifyContent: 'center' },
-  logoFallback: { width: 30, height: 30, borderRadius: 8, backgroundColor: 'rgba(11, 8, 3, 0.06)', alignItems: 'center', justifyContent: 'center' },
+  logoFallback: { width: 32, height: 32, borderRadius: 8, backgroundColor: 'rgba(11, 8, 3, 0.06)', alignItems: 'center', justifyContent: 'center' },
   logoFallbackText: { fontSize: 14, fontWeight: '900', color: 'rgba(11, 8, 3, 0.72)' },
 
   emptyCardBody: { flexDirection: 'row', alignItems: 'center', gap: 12, marginTop: 16, marginBottom: 4 },

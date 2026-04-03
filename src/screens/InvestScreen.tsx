@@ -32,10 +32,14 @@ const ROBINHOOD_URL = 'https://robinhood.com/signup';
 const PARTNER_LOGO_WEBULL = require('../assets/partners/webull.png');
 const PARTNER_LOGO_ROBINHOOD = require('../assets/partners/robinhood.png');
 
+/** Hoisted `require` so Metro always registers this asset in production/release bundles */
+const INVEST_SLIDER_STRIPES = require('../assets/invest-slider-stripes.png');
+
 const TRACK_GREY = 'rgba(0, 0, 0, 0.10)';
 const THUMB_SIZE = 32;
 const TRACK_HEIGHT = 12;
-const THUMB_OVERHANG = (THUMB_SIZE - TRACK_HEIGHT) / 2; // 10px
+/** Tappable row height; idle thumb is THUMB_SIZE, grows to this while dragging. */
+const SLIDER_TOUCH_HEIGHT = 40;
 /** One haptic tick per step across 0…1 (50 discrete steps). */
 const SLIDER_HAPTIC_STEPS = 50;
 /** Intrinsic size of `invest-slider-stripes.png` (width × height). */
@@ -57,16 +61,15 @@ function clamp01(x: number) {
 function SliderStripeOverlay({ width }: { width: number }) {
   const tileW = TRACK_HEIGHT * (STRIPE_PNG_W / STRIPE_PNG_H);
   const tileCount = Math.max(1, Math.ceil(width / tileW));
-  const source = require('../assets/invest-slider-stripes.png');
   return (
     <View style={[sliderStyles.fillStripeOverlay, { width }]} pointerEvents="none">
       <View style={sliderStyles.stripeTileRow}>
         {Array.from({ length: tileCount }, (_, i) => (
           <RNImage
             key={i}
-            source={source}
+            source={INVEST_SLIDER_STRIPES}
             style={{ width: tileW, height: TRACK_HEIGHT }}
-            resizeMode="contain"
+            resizeMode="cover"
           />
         ))}
       </View>
@@ -157,10 +160,13 @@ function InvestSlider({
   );
 
   const fillW = trackWidth > 0 ? clamp01(liveNorm) * trackWidth : 0;
+  const thumbSize = dragging ? SLIDER_TOUCH_HEIGHT : THUMB_SIZE;
+  const thumbOverhang = (thumbSize - TRACK_HEIGHT) / 2;
+  const thumbTop = (SLIDER_TOUCH_HEIGHT - thumbSize) / 2;
   const thumbLeft =
     trackWidth > TRACK_HEIGHT
-      ? -THUMB_OVERHANG + clamp01(liveNorm) * (trackWidth - TRACK_HEIGHT)
-      : -THUMB_OVERHANG;
+      ? -thumbOverhang + clamp01(liveNorm) * (trackWidth - TRACK_HEIGHT)
+      : -thumbOverhang;
 
   function onTrackPress(locationX: number) {
     if (trackWidth <= 0) return;
@@ -177,35 +183,62 @@ function InvestSlider({
           style={[sliderStyles.trackPress, { width: trackWidth }]}
           onPress={(e) => onTrackPress(e.nativeEvent.locationX)}
         >
-          <View style={StyleSheet.absoluteFillObject}>
-            <View style={sliderStyles.trackBg} />
-            {fillW > 0.5 ? (
-              <View style={[sliderStyles.fillClip, { width: fillW }]} pointerEvents="none">
-                <LinearGradient
-                  colors={['#D53AEA', '#CB30E0']}
-                  start={{ x: 0.5, y: 0 }}
-                  end={{ x: 0.5, y: 1 }}
-                  style={sliderStyles.fillGradient}
-                />
-                <SliderStripeOverlay width={fillW} />
-              </View>
-            ) : null}
+          <View style={sliderStyles.trackRailInner}>
+            <View style={StyleSheet.absoluteFillObject}>
+              <View style={sliderStyles.trackBg} />
+              {fillW > 0.5 ? (
+                <View style={[sliderStyles.fillClip, { width: fillW }]} pointerEvents="none">
+                  <LinearGradient
+                    colors={['#D53AEA', '#CB30E0']}
+                    start={{ x: 0.5, y: 0 }}
+                    end={{ x: 0.5, y: 1 }}
+                    style={sliderStyles.fillGradient}
+                  />
+                  <SliderStripeOverlay width={fillW} />
+                </View>
+              ) : null}
+            </View>
           </View>
         </Pressable>
       </View>
-      <View style={[sliderStyles.thumbOuter, { left: thumbLeft }]} {...panResponder.panHandlers}>
+      <View
+        style={[
+          sliderStyles.thumbOuter,
+          {
+            left: thumbLeft,
+            top: thumbTop,
+            width: thumbSize,
+            height: thumbSize,
+            borderRadius: thumbSize / 2,
+            padding: Math.round((5 * thumbSize) / THUMB_SIZE),
+          },
+        ]}
+        {...panResponder.panHandlers}
+      >
         <LinearGradient
           colors={['#D53AEA', '#DF44F4', '#B71CCC']}
           locations={[0.021, 0.3703, 1]}
           start={{ x: 0.5, y: 0 }}
           end={{ x: 0.5, y: 1 }}
-          style={sliderStyles.thumbMiddle}
+          style={[
+            sliderStyles.thumbMiddle,
+            {
+              borderRadius: Math.round(thumbSize * 0.9375),
+              padding: Math.round((6 * thumbSize) / THUMB_SIZE),
+            },
+          ]}
         >
           <LinearGradient
             colors={['#FFFFFF', '#FFBBFF']}
             start={{ x: 0.5, y: 0 }}
             end={{ x: 0.5, y: 1 }}
-            style={sliderStyles.thumbInner}
+            style={[
+              sliderStyles.thumbInner,
+              {
+                width: Math.round((10 * thumbSize) / THUMB_SIZE),
+                height: Math.round((10 * thumbSize) / THUMB_SIZE),
+              },
+            ]}
           />
         </LinearGradient>
       </View>
@@ -216,7 +249,7 @@ function InvestSlider({
 const sliderStyles = StyleSheet.create({
   wrap: {
     marginTop: 0,
-    height: THUMB_SIZE,
+    height: SLIDER_TOUCH_HEIGHT,
     position: 'relative',
     justifyContent: 'center',
   },
@@ -225,6 +258,11 @@ const sliderStyles = StyleSheet.create({
     justifyContent: 'center',
   },
   trackPress: {
+    height: SLIDER_TOUCH_HEIGHT,
+    justifyContent: 'center',
+    alignSelf: 'stretch',
+  },
+  trackRailInner: {
     height: TRACK_HEIGHT,
     borderRadius: 20,
     overflow: 'hidden',
@@ -260,12 +298,7 @@ const sliderStyles = StyleSheet.create({
   },
   thumbOuter: {
     position: 'absolute',
-    width: THUMB_SIZE,
-    height: THUMB_SIZE,
-    borderRadius: 50,
     backgroundColor: 'rgba(203, 48, 224, 0.10)',
-    padding: 5,
-    top: 0,
     alignItems: 'center',
     justifyContent: 'center',
     zIndex: 2,
@@ -273,8 +306,6 @@ const sliderStyles = StyleSheet.create({
   thumbMiddle: {
     width: '100%',
     height: '100%',
-    borderRadius: 30,
-    padding: 6,
     alignItems: 'center',
     justifyContent: 'center',
     shadowColor: '#3F0054',
@@ -284,8 +315,6 @@ const sliderStyles = StyleSheet.create({
     elevation: 4,
   },
   thumbInner: {
-    width: 10,
-    height: 10,
     borderRadius: 999,
   },
 });
@@ -447,7 +476,7 @@ export function InvestScreen() {
               onInteractionEnd={() => setScrollEnabled(true)}
             />
           ) : (
-            <View style={{ height: THUMB_SIZE }} />
+            <View style={{ height: SLIDER_TOUCH_HEIGHT }} />
           )}
         </View>
 
@@ -538,7 +567,7 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   monthlyInputGroup: {
-    marginBottom: 8,
+    marginBottom: 4,
   },
   monthlyLabel: {
     fontFamily: 'SF Pro Display',
@@ -569,7 +598,7 @@ const styles = StyleSheet.create({
 
   sliderTrackHost: {
     alignSelf: 'stretch',
-    marginBottom: 10,
+    marginBottom: 6,
   },
 
   disclosureRow: {
@@ -617,9 +646,9 @@ const styles = StyleSheet.create({
     flexShrink: 0,
   },
   partnerBrandImage: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
+    width: 32,
+    height: 32,
+    borderRadius: 16,
   },
   partnerMain: {
     flex: 1,
