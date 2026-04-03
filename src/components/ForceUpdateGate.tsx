@@ -8,7 +8,7 @@ import {
   View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Ionicons } from '@expo/vector-icons';
+import { SFIcon } from './SFIcon';
 import Constants from 'expo-constants';
 import { supabase } from '../lib/supabase';
 import { colors } from '../ui/theme';
@@ -75,7 +75,7 @@ export function ForceUpdateGate({ children }: Props) {
     <View style={[s.container, { paddingTop: insets.top, paddingBottom: insets.bottom }]}>
       <View style={s.heroSection}>
         <View style={s.iconCircle}>
-          <Ionicons name="arrow-up-circle-outline" size={48} color={colors.text} />
+          <SFIcon name="arrow.up.circle" size={48} color={colors.text} />
         </View>
         <Text style={s.title}>Update Required</Text>
         <Text style={s.subtitle}>
@@ -89,11 +89,7 @@ export function ForceUpdateGate({ children }: Props) {
           onPress={() => Linking.openURL(storeUrl)}
           style={({ pressed }) => [s.btn, s.updateBtn, pressed && s.pressed]}
         >
-          <Ionicons
-            name={Platform.OS === 'ios' ? 'logo-apple' : 'logo-google-playstore'}
-            size={20}
-            color="#FFFFFF"
-          />
+          <SFIcon name="apple.logo" size={20} color="#FFFFFF" />
           <Text style={s.updateBtnText}>Update Now</Text>
         </Pressable>
       </View>

@@ -9,7 +9,7 @@ import {
   View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Ionicons } from '@expo/vector-icons';
+import { SFIcon } from '../components/SFIcon';
 import {
   adapty,
   type AdaptyPaywall,
@@ -95,14 +95,14 @@ export function PaywallScreen({ navigation }: Props) {
 
   if (loading) {
     return (
-      <View style={[s.container, { paddingTop: insets.top, paddingBottom: insets.bottom }]}>
+      <View style={[s.container, { paddingTop: Math.max(insets.top, 12), paddingBottom: Math.max(insets.bottom, 12) }]}>
         <ActivityIndicator size="large" color={colors.text} />
       </View>
     );
   }
 
   return (
-    <View style={[s.container, { paddingTop: insets.top, paddingBottom: insets.bottom }]}>
+    <View style={[s.container, { paddingTop: Math.max(insets.top, 12), paddingBottom: Math.max(insets.bottom, 12) }]}>
       {purchasing && (
         <View style={s.overlay}>
           <ActivityIndicator size="large" color={colors.text} />
@@ -115,13 +115,13 @@ export function PaywallScreen({ navigation }: Props) {
         hitSlop={12}
         style={({ pressed }) => [s.closeBtn, pressed && s.pressed]}
       >
-        <Ionicons name="close" size={24} color={colors.text} />
+        <SFIcon name="xmark" size={24} color={colors.text} />
       </Pressable>
 
       {/* Hero */}
       <View style={s.hero}>
         <View style={s.iconCircle}>
-          <Ionicons name="diamond" size={40} color="#CB30E0" />
+          <SFIcon name="suit.diamond.fill" size={40} color="#CB30E0" />
         </View>
         <Text style={s.title}>Go Premium</Text>
         <Text style={s.subtitle}>
@@ -132,13 +132,13 @@ export function PaywallScreen({ navigation }: Props) {
       {/* Features */}
       <View style={s.features}>
         {[
-          { icon: 'infinite-outline' as const, text: 'Unlimited subscriptions' },
-          { icon: 'notifications-outline' as const, text: 'Smart reminders' },
-          { icon: 'analytics-outline' as const, text: 'Advanced analytics' },
-          { icon: 'shield-checkmark-outline' as const, text: 'Priority support' },
+          { icon: 'infinity', text: 'Unlimited subscriptions' },
+          { icon: 'bell', text: 'Smart reminders' },
+          { icon: 'chart.bar', text: 'Advanced analytics' },
+          { icon: 'checkmark.shield', text: 'Priority support' },
         ].map((f) => (
           <View key={f.text} style={s.featureRow}>
-            <Ionicons name={f.icon} size={20} color="#CB30E0" />
+            <SFIcon name={f.icon} size={20} color="#CB30E0" />
             <Text style={s.featureText}>{f.text}</Text>
           </View>
         ))}

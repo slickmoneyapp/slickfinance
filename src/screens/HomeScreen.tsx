@@ -1,6 +1,6 @@
 import React, { useLayoutEffect } from 'react';
 import { Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+import { SFIcon } from '../components/SFIcon';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { CompanyLogo } from '../components/CompanyLogo';
 import type { RootStackParamList } from '../../App';
@@ -122,7 +122,7 @@ export function HomeScreen({ navigation }: Props) {
             <>
               <Text style={styles.cardTitle}>Subscriptions</Text>
               <View style={styles.emptyCardBody}>
-                <Ionicons name="receipt-outline" size={28} color="rgba(11,8,3,0.3)" />
+                <SFIcon name="doc.text" size={28} color="rgba(11,8,3,0.3)" />
                 <Text style={styles.emptyCardText}>
                   Tap to add your first subscription
                 </Text>

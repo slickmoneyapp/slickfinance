@@ -13,6 +13,7 @@ import * as AppleAuthentication from 'expo-apple-authentication';
 import * as WebBrowser from 'expo-web-browser';
 import { makeRedirectUri } from 'expo-auth-session';
 import Constants from 'expo-constants';
+import { SFIcon } from '../components/SFIcon';
 import { Ionicons } from '@expo/vector-icons';
 import { supabase } from '../lib/supabase';
 import { useAuthStore } from '../features/auth/store';
@@ -117,7 +118,7 @@ export function LoginScreen() {
 
       <View style={s.heroSection}>
         <View style={s.iconCircle}>
-          <Ionicons name="wallet-outline" size={48} color={colors.text} />
+          <SFIcon name="wallet.pass" size={48} color={colors.text} />
         </View>
         <Text style={s.title}>Slick Finance</Text>
         <Text style={s.subtitle}>
@@ -132,7 +133,7 @@ export function LoginScreen() {
             disabled={loading}
             style={({ pressed }) => [s.btn, s.appleBtn, pressed && s.pressed]}
           >
-            <Ionicons name="logo-apple" size={20} color="#FFFFFF" />
+            <SFIcon name="apple.logo" size={20} color="#FFFFFF" />
             <Text style={s.appleBtnText}>Continue with Apple</Text>
           </Pressable>
         )}

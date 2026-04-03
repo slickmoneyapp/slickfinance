@@ -9,19 +9,18 @@ import {
   Text,
   View,
 } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+import { SFIcon } from '../components/SFIcon';
 import Svg, { Path } from 'react-native-svg';
 import { hapticSelection } from '../ui/haptics';
-import type { BottomTabScreenProps } from '@react-navigation/bottom-tabs';
-import type { RootTabsParamList } from '../../App';
+import type { NavigationProp } from '@react-navigation/native';
 import { useSubscriptionsStore } from '../features/subscriptions/store';
 import { formatMoney, monthlySpendTotal, subscriptionMonthlyEquivalent } from '../features/subscriptions/calc';
 import type { CurrencyCode } from '../features/subscriptions/types';
 import { colors, radius, spacing } from '../ui/theme';
-import { PageHeader, SurfaceCard } from '../ui/components';
+import { SurfaceCard } from '../ui/components';
 import { TabScreenBackground } from '../components/TabScreenBackground';
 
-type Props = BottomTabScreenProps<RootTabsParamList, 'Invest'>;
+type Props = { navigation: NavigationProp<any> };
 
 const BG = colors.bg;
 const CARD = colors.surface;
@@ -165,14 +164,8 @@ export function InvestScreen({ navigation }: Props) {
   }, [items]);
 
   return (
-    <TabScreenBackground variant="figma" edges={['top', 'left', 'right']}>
-      <ScrollView contentContainerStyle={s.content} showsVerticalScrollIndicator={false}>
-        <PageHeader
-          title="Invest"
-          titleVariant="figma"
-          subtitle="What if part of your subscriptions worked for you instead?"
-        />
-
+    <TabScreenBackground variant="figma" edges={['left', 'right', 'bottom']}>
+      <ScrollView contentContainerStyle={s.content} showsVerticalScrollIndicator={false} contentInsetAdjustmentBehavior="automatic">
         <SurfaceCard style={s.mainCard}>
           <Text style={s.kicker}>Based on your spending</Text>
           <Text style={s.spendLine}>You spend {formatMoney(monthlyBase, currency)}/month on subscriptions</Text>
@@ -268,7 +261,7 @@ export function InvestScreen({ navigation }: Props) {
               style={({ pressed }) => [s.linkRow, pressed && s.pressed]}
             >
               <Text style={s.linkName}>Robinhood</Text>
-              <Ionicons name="open-outline" size={16} color={INK} />
+              <SFIcon name="arrow.up.right.square" size={16} color={INK} />
             </Pressable>
             <Pressable
               onPress={() => {
@@ -278,7 +271,7 @@ export function InvestScreen({ navigation }: Props) {
               style={({ pressed }) => [s.linkRow, pressed && s.pressed]}
             >
               <Text style={s.linkName}>Webull</Text>
-              <Ionicons name="open-outline" size={16} color={INK} />
+              <SFIcon name="arrow.up.right.square" size={16} color={INK} />
             </Pressable>
           </View>
 
@@ -291,7 +284,7 @@ export function InvestScreen({ navigation }: Props) {
 }
 
 const s = StyleSheet.create({
-  content: { paddingHorizontal: spacing.screenX, paddingBottom: 24, gap: 10 },
+  content: { paddingHorizontal: spacing.screenX, paddingBottom: 40, gap: 10 },
   pressed: { opacity: 0.75 },
 
   mainCard: { backgroundColor: CARD, borderRadius: radius.card, padding: spacing.cardPadding, gap: 8 },

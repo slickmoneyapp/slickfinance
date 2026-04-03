@@ -1,7 +1,7 @@
 import React from 'react';
 import { ActivityIndicator, Platform, Pressable, StyleSheet, Text, TextStyle, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Ionicons } from '@expo/vector-icons';
+import { SFIcon } from '../components/SFIcon';
 import { hapticImpact, hapticSelection } from './haptics';
 import { colors, figma, radius, spacing, typeScale } from './theme';
 
@@ -84,7 +84,7 @@ export function IconCircleButton({
   onPress,
   filled,
 }: {
-  icon: keyof typeof Ionicons.glyphMap;
+  icon: string;
   onPress: () => void;
   filled?: boolean;
 }) {
@@ -100,7 +100,7 @@ export function IconCircleButton({
         pressed && s.pressed,
       ]}
     >
-      <Ionicons name={icon} size={18} color={filled ? '#fff' : colors.text} />
+      <SFIcon name={icon} size={18} color={filled ? '#fff' : colors.text} />
     </Pressable>
   );
 }

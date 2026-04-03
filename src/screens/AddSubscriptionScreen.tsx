@@ -12,7 +12,7 @@ import {
   TextInput,
   View,
 } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+import { SFIcon } from '../components/SFIcon';
 import { useSafeAreaInsets, type EdgeInsets } from 'react-native-safe-area-context';
 import { AppActionSheet } from '../components/AppActionSheet';
 import { DatePickerModal } from '../components/DatePickerModal';
@@ -68,12 +68,10 @@ const GREEN = colors.success;
 
 export function AddSubscriptionScreen({ navigation }: Props) {
   const safeAreaInsets = useSafeAreaInsets();
-  /** Same as Edit: fullScreenModal often reports 0 insets; Modal sheets need non-zero top/bottom. */
   const layoutInsets = useMemo<EdgeInsets>(
     () => ({
-      top: safeAreaInsets.top > 0 ? safeAreaInsets.top : Platform.OS === 'ios' ? 59 : safeAreaInsets.top,
-      bottom:
-        safeAreaInsets.bottom > 0 ? safeAreaInsets.bottom : Platform.OS === 'ios' ? 34 : safeAreaInsets.bottom,
+      top: Math.max(safeAreaInsets.top, 12),
+      bottom: Math.max(safeAreaInsets.bottom, 12),
       left: safeAreaInsets.left,
       right: safeAreaInsets.right,
     }),
@@ -251,7 +249,7 @@ export function AddSubscriptionScreen({ navigation }: Props) {
           <View style={s.searchBar}>
             {apiLoading
               ? <ActivityIndicator size="small" color={DIM} style={{ marginRight: 8 }} />
-              : <Ionicons name="search" size={16} color={DIM} style={{ marginRight: 8 }} />
+              : <SFIcon name="magnifyingglass" size={16} color={DIM} style={{ marginRight: 8 }} />
             }
             <TextInput
               value={search}
@@ -271,7 +269,7 @@ export function AddSubscriptionScreen({ navigation }: Props) {
                 }}
                 hitSlop={8}
               >
-                <Ionicons name="close-circle" size={16} color={DIM} />
+                <SFIcon name="xmark.circle.fill" size={16} color={DIM} />
               </Pressable>
             )}
           </View>
@@ -309,7 +307,7 @@ export function AddSubscriptionScreen({ navigation }: Props) {
                             <Text style={s.serviceRowText}>{item.name}</Text>
                             <Text style={s.serviceRowDomain}>{item.domain}</Text>
                           </View>
-                          <Ionicons name="chevron-forward" size={16} color="rgba(11,8,3,0.25)" />
+                          <SFIcon name="chevron.right" size={16} color="rgba(11,8,3,0.25)" />
                         </Pressable>
                       </View>
                     ))}
@@ -325,7 +323,7 @@ export function AddSubscriptionScreen({ navigation }: Props) {
               <Text style={s.sectionLabel}>Custom</Text>
               <View style={[s.card, { marginHorizontal: 16 }]}>
                 <PickerAction
-                  icon="add-circle-outline"
+                  icon="plus.circle"
                   label={`Add "${search.trim()}" manually`}
                   sublabel="Set your own logo, price, and details"
                   onPress={startCustom}
@@ -339,21 +337,21 @@ export function AddSubscriptionScreen({ navigation }: Props) {
             <>
               <View style={[s.card, { marginTop: 16, marginHorizontal: 16 }]}>
                 <PickerAction
-                  icon="image-outline"
+                  icon="photo"
                   label="Import from photos"
                   sublabel="Receipt, bill or renewal screenshots"
                   locked
                 />
                 <View style={s.sep} />
                 <PickerAction
-                  icon="document-text-outline"
+                  icon="doc.text"
                   label="Import a file"
                   sublabel="Bank statement or spreadsheet (PDF or CSV)"
                   locked
                 />
                 <View style={s.sep} />
                 <PickerAction
-                  icon="add-circle-outline"
+                  icon="plus.circle"
                   label="Custom subscription"
                   onPress={startCustom}
                 />
@@ -372,7 +370,7 @@ export function AddSubscriptionScreen({ navigation }: Props) {
                         >
                           <CompanyLogo domain={item.domain} size={36} rounded={10} fallbackText={item.name} />
                           <Text style={s.serviceRowText}>{item.name}</Text>
-                          <Ionicons name="chevron-forward" size={16} color="rgba(11,8,3,0.25)" />
+                          <SFIcon name="chevron.right" size={16} color="rgba(11,8,3,0.25)" />
                         </Pressable>
                       </View>
                     ))}
@@ -392,7 +390,7 @@ export function AddSubscriptionScreen({ navigation }: Props) {
     <View style={{ flex: 1, backgroundColor: colors.bg, paddingTop: layoutInsets.top, paddingBottom: layoutInsets.bottom }}>
       <ScreenHeader
         title="Add Subscription"
-        left={<IconCircleButton icon="chevron-back" onPress={() => setStep('picker')} />}
+        left={<IconCircleButton icon="chevron.left" onPress={() => setStep('picker')} />}
         right={<AppButton label="Save" onPress={handleSave} loading={saving} />}
       />
         <ScrollView
@@ -475,7 +473,7 @@ export function AddSubscriptionScreen({ navigation }: Props) {
                   year: 'numeric',
                 })}
               </Text>
-              <Ionicons name="chevron-forward" size={14} color={DIM} />
+              <SFIcon name="chevron.right" size={14} color={DIM} />
             </FormRow>
             <Text style={s.startHint}>
               First charge or member since — set earlier if you used this service long before installing the app. Matches payment date until you change it.
@@ -483,7 +481,7 @@ export function AddSubscriptionScreen({ navigation }: Props) {
             <View style={s.sep} />
             <FormRow label="Billing Cycle" onPress={() => setSheet('billingCycle')}>
               <Text style={s.valueText}>{BILLING_CYCLE_LABELS[billingCycle]}</Text>
-              <Ionicons name="chevron-forward" size={14} color={DIM} />
+              <SFIcon name="chevron.right" size={14} color={DIM} />
             </FormRow>
             <View style={s.sep} />
             <FormRow label="Free Trial">
@@ -499,7 +497,7 @@ export function AddSubscriptionScreen({ navigation }: Props) {
                 <View style={s.sep} />
                 <FormRow label="Trial Length" onPress={() => setSheet('trialLength')}>
                   <Text style={s.valueText}>{TRIAL_LENGTH_LABELS[trialLength]}</Text>
-                  <Ionicons name="chevron-forward" size={14} color={DIM} />
+                  <SFIcon name="chevron.right" size={14} color={DIM} />
                 </FormRow>
               </>
             )}
@@ -509,17 +507,17 @@ export function AddSubscriptionScreen({ navigation }: Props) {
           <View style={[s.card, { marginTop: 10 }]}>
             <FormRow label="List" onPress={() => setSheet('list')}>
               <Text style={s.valueText}>{list}</Text>
-              <Ionicons name="chevron-forward" size={14} color={DIM} />
+              <SFIcon name="chevron.right" size={14} color={DIM} />
             </FormRow>
             <View style={s.sep} />
             <FormRow label="Category" onPress={() => setSheet('category')}>
               <Text style={s.valueText}>{category}</Text>
-              <Ionicons name="chevron-forward" size={14} color={DIM} />
+              <SFIcon name="chevron.right" size={14} color={DIM} />
             </FormRow>
             <View style={s.sep} />
             <FormRow label="Payment Method" onPress={() => setSheet('paymentMethod')}>
               <Text style={s.valueText}>{paymentMethod || 'None'}</Text>
-              <Ionicons name="chevron-forward" size={14} color={DIM} />
+              <SFIcon name="chevron.right" size={14} color={DIM} />
             </FormRow>
           </View>
 
@@ -544,7 +542,7 @@ export function AddSubscriptionScreen({ navigation }: Props) {
                         ? '1 week before'
                         : `${reminderDays} day${reminderDays > 1 ? 's' : ''} before`}
                   </Text>
-                  <Ionicons name="chevron-forward" size={14} color={DIM} />
+                  <SFIcon name="chevron.right" size={14} color={DIM} />
                 </FormRow>
                 <View style={s.sep} />
                 <FormRow label="Time">
@@ -556,7 +554,7 @@ export function AddSubscriptionScreen({ navigation }: Props) {
                     style={({ pressed }) => [s.pickerTap, pressed && s.pressed]}
                   >
                     <Text style={s.valueText}>{reminderTime}</Text>
-                    <Ionicons name="chevron-forward" size={13} color={DIM} />
+                    <SFIcon name="chevron.right" size={13} color={DIM} />
                   </Pressable>
                 </FormRow>
               </>
@@ -676,15 +674,15 @@ export function AddSubscriptionScreen({ navigation }: Props) {
                     style={({ pressed }) => [s.catOption, pressed && s.pressed]}
                   >
                     <View style={[s.catIconWrap, category === item && s.catIconWrapSelected]}>
-                      <Ionicons
-                        name={(CATEGORY_ICONS[item] ?? 'ellipsis-horizontal-circle-outline') as any}
+                      <SFIcon
+                        name={CATEGORY_ICONS[item] ?? 'ellipsis.circle'}
                         size={20}
                         color={category === item ? '#fff' : INK}
                       />
                     </View>
                     <Text style={s.catOptionText}>{item}</Text>
                     {category === item && (
-                      <Ionicons name="checkmark-circle" size={18} color={GREEN} style={{ marginLeft: 'auto' }} />
+                      <SFIcon name="checkmark.circle.fill" size={18} color={GREEN} style={{ marginLeft: 'auto' }} />
                     )}
                   </Pressable>
                 ))}
@@ -824,7 +822,7 @@ function PickerAction({
   locked,
   onPress,
 }: {
-  icon: keyof typeof Ionicons.glyphMap;
+  icon: string;
   label: string;
   sublabel?: string;
   locked?: boolean;
@@ -836,15 +834,15 @@ function PickerAction({
       style={({ pressed }) => [s.actionRow, !locked && pressed && s.pressed]}
     >
       <View style={s.actionIcon}>
-        <Ionicons name={icon} size={20} color={INK} />
+        <SFIcon name={icon} size={20} color={INK} />
       </View>
       <View style={{ flex: 1 }}>
         <Text style={s.actionLabel}>{label}</Text>
         {sublabel ? <Text style={s.actionSublabel}>{sublabel}</Text> : null}
       </View>
       {locked
-        ? <Ionicons name="lock-closed" size={14} color="rgba(11,8,3,0.2)" />
-        : <Ionicons name="chevron-forward" size={16} color="rgba(11,8,3,0.25)" />
+        ? <SFIcon name="lock.fill" size={14} color="rgba(11,8,3,0.2)" />
+        : <SFIcon name="chevron.right" size={16} color="rgba(11,8,3,0.25)" />
       }
     </Pressable>
   );
@@ -901,9 +899,9 @@ function SheetOption({
     >
       <Text style={s.sheetOptionText}>{label}</Text>
       {selected ? (
-        <Ionicons name="checkmark-circle" size={18} color={GREEN} />
+        <SFIcon name="checkmark.circle.fill" size={18} color={GREEN} />
       ) : (
-        <Ionicons name="chevron-forward" size={14} color={DIM} />
+        <SFIcon name="chevron.right" size={14} color={DIM} />
       )}
     </Pressable>
   );

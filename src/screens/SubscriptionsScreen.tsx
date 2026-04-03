@@ -1,26 +1,22 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo } from 'react';
 import {
-  Dimensions,
+  DynamicColorIOS,
+  FlatList,
+  type ListRenderItemInfo,
   Platform,
   Pressable,
-  ScrollView,
   StyleSheet,
   Text,
   View,
-  useWindowDimensions,
 } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
-import { Ionicons } from '@expo/vector-icons';
+import { SFIcon } from '../components/SFIcon';
+import { MenuView } from '@react-native-menu/menu';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { AppActionSheet } from '../components/AppActionSheet';
-import { colors, figma, sheetTypography, spacing } from '../ui/theme';
-import { IconCircleButton, PageHeader } from '../ui/components';
-import { TabScreenBackground } from '../components/TabScreenBackground';
-import type { BottomTabScreenProps } from '@react-navigation/bottom-tabs';
-import type { RootTabsParamList } from '../../App';
+import { colors, figma } from '../ui/theme';
+import type { NavigationProp } from '@react-navigation/native';
 import { navigateRoot } from '../navigation/navigateRoot';
-import { USE_FIGMA_SINGLE_PAGE_NAV } from '../config/featureFlags';
 import { CompanyLogo } from '../components/CompanyLogo';
+import { TabScreenBackground } from '../components/TabScreenBackground';
 import {
   useSubscriptionsStore,
   selectVisibleSubscriptions,
@@ -30,19 +26,14 @@ import {
 import { AnimatedMoneyAmount } from '../components/AnimatedMoneyAmount';
 import { formatMoney, getMonthOverMonthSpendPill, monthlySpendTotal } from '../features/subscriptions/calc';
 import type { Subscription } from '../features/subscriptions/types';
-import {
-  getDaysInMonth,
-  getFirstWeekdayMondayZero,
-  getRecurringDatesInMonth,
-  MONTH_NAMES,
-  WEEKDAY_LABELS_SHORT,
-} from '../features/subscriptions/subscriptionCalendar';
+import { MONTH_NAMES } from '../features/subscriptions/subscriptionCalendar';
 import { billingSubtitle, cycleShort } from '../features/subscriptions/subscriptionRowFormatting';
 import { useMonthlySpendCountFromOnFocus } from '../hooks/useMonthlySpendCountFromOnFocus';
 import { hapticImpact, hapticSelection } from '../ui/haptics';
 import { SubscriptionListSkeleton, SkeletonBlock } from '../components/Skeleton';
 
-type Props = BottomTabScreenProps<RootTabsParamList, 'Subscriptions'>;
+type Props = { navigation: NavigationProp<any> };
+type MenuOption<T extends string> = { id: T; label: string };
 
 // ─── Design tokens ────────────────────────────────────────────────────────────
 const BG = colors.bg;
@@ -61,6 +52,29 @@ const NEUTRAL_PILL_TEXT = 'rgba(11,8,3,0.55)';
 /** "Same vs …" — same red as increase chip text (#C62828), fill at 10% opacity */
 const SAME_PILL_BG = 'rgba(198, 40, 40, 0.1)';
 
+const iosDynamic = (light: string, dark: string, fallback: string = light) =>
+  Platform.OS === 'ios' ? DynamicColorIOS({ light, dark }) : fallback;
+
+const IOS_CARD_BG = iosDynamic('#FFFFFF', '#1C1C1E', CARD);
+const IOS_PRIMARY_LABEL = iosDynamic('#111111', '#FFFFFF', INK);
+const IOS_SECONDARY_LABEL = iosDynamic('rgba(60, 60, 67, 0.62)', 'rgba(235, 235, 245, 0.60)', DIM);
+const IOS_SEPARATOR = iosDynamic('rgba(60, 60, 67, 0.24)', 'rgba(84, 84, 88, 0.65)', SEP);
+const IOS_ROW_HIGHLIGHT = iosDynamic('rgba(120, 120, 128, 0.12)', 'rgba(118, 118, 128, 0.24)', 'rgba(120, 120, 128, 0.12)');
+const STATUS_OPTIONS: MenuOption<SubscriptionFilter>[] = [
+  { id: 'all', label: 'All' },
+  { id: 'active', label: 'Active' },
+  { id: 'trial', label: 'Trial' },
+  { id: 'paused', label: 'Paused' },
+  { id: 'cancelled', label: 'Cancelled' },
+];
+
+const SORT_OPTIONS: MenuOption<SubscriptionSort>[] = [
+  { id: 'nearest_renewal', label: 'Nearest renewal' },
+  { id: 'highest_price', label: 'Highest price' },
+  { id: 'alpha', label: 'Alphabetical' },
+  { id: 'recent', label: 'Recently added' },
+];
+
 // ─── Screen ───────────────────────────────────────────────────────────────────
 export function SubscriptionsScreen({ navigation }: Props) {
   const insets = useSafeAreaInsets();
@@ -71,18 +85,8 @@ export function SubscriptionsScreen({ navigation }: Props) {
   const setFilter = useSubscriptionsStore((s) => s.setFilter);
   const hydrated  = useSubscriptionsStore((s) => s.hydrated);
 
-  const [showCalendar, setShowCalendar] = useState(false);
-  const [showFilters, setShowFilters] = useState(false);
-  const { width: windowWidth } = useWindowDimensions();
-  const calendarSheetContentWidth = windowWidth - 2 * spacing.sheetPaddingX;
-  const calendarSheetMaxHeight = Math.min(Math.round(Dimensions.get('window').height * 0.88), 700);
   const { countFrom: heroMonthlyCountFrom, onCountComplete: onHeroMonthlyCountComplete } =
     useMonthlySpendCountFromOnFocus();
-
-  const [calMonth, setCalMonth] = useState(() => {
-    const d = new Date();
-    return { year: d.getFullYear(), month: d.getMonth() };
-  });
 
   const visible  = useMemo(() => selectVisibleSubscriptions({ items, sort, filter }), [items, sort, filter]);
   const currency = items[0]?.currency ?? 'USD';
@@ -106,491 +110,193 @@ export function SubscriptionsScreen({ navigation }: Props) {
     navigateRoot(navigation as any, 'AddSubscription');
   }
 
-  function openSettings() {
-    navigateRoot(navigation as any, 'Settings');
-  }
+  const statusMenuActions = useMemo(
+    () =>
+      STATUS_OPTIONS.map((opt) => ({
+        id: opt.id,
+        title: opt.label,
+        state: filter === opt.id ? 'on' : 'off',
+      })),
+    [filter],
+  );
+  const sortMenuActions = useMemo(
+    () =>
+      SORT_OPTIONS.map((opt) => ({
+        id: opt.id,
+        title: opt.label,
+        state: sort === opt.id ? 'on' : 'off',
+      })),
+    [sort],
+  );
+  const selectedStatusLabel = useMemo(
+    () => STATUS_OPTIONS.find((opt) => opt.id === filter)?.label ?? 'All',
+    [filter],
+  );
+  const selectedSortLabel = useMemo(
+    () => SORT_OPTIONS.find((opt) => opt.id === sort)?.label ?? 'Nearest renewal',
+    [sort],
+  );
 
-  const addBar = figma.subscriptions273.addTransactionBar;
-  const bottomCta = figma.subscriptions273.bottomCta;
-  const bottomOverlayPadBottom = Math.max(0, addBar.paddingBottomFromScreen - insets.bottom);
-  /** Scroll padding so list clears the absolute bottom overlay (fade + button + bottom inset). */
-  const scrollBottomForOverlay = useMemo(() => {
-    const btnApprox =
-      bottomCta.paddingVertical * 2 + Math.ceil(bottomCta.lineHeight);
+  const listData = hydrated ? visible : [];
+  const renderSubscriptionRow = ({ item, index }: ListRenderItemInfo<Subscription>) => {
+    const isFirst = index === 0;
+    const isLast = index === listData.length - 1;
     return (
-      addBar.gradientFadeHeight +
-      addBar.buttonRowTopPadding +
-      btnApprox +
-      bottomOverlayPadBottom +
-      12
+      <View style={[s.rowCardItem, isFirst && s.rowCardFirst, isLast && s.rowCardLast]}>
+        {!isFirst && <View style={s.sepFull} />}
+        <SubscriptionRow sub={item} onPressItem={openDetail} />
+      </View>
     );
-  }, [addBar, bottomCta, bottomOverlayPadBottom]);
+  };
 
   return (
-    <TabScreenBackground variant="figma" edges={['top', 'left', 'right', 'bottom']}>
-      <View style={{ flex: 1 }}>
-        <PageHeader
-          title="Subscriptions"
-          titleVariant="figma"
-          right={
-            USE_FIGMA_SINGLE_PAGE_NAV ? (
-              <Pressable
-                onPress={() => {
-                  void hapticSelection();
-                  openSettings();
-                }}
-                accessibilityRole="button"
-                accessibilityLabel="Settings"
-                style={({ pressed }) => [s.figmaSettingsBtn, pressed && s.pressed]}
-              >
-                <Ionicons name="settings-outline" size={20} color={INK} />
-              </Pressable>
-            ) : (
-              <View style={{ flexDirection: 'row', gap: 8 }}>
-                <IconCircleButton
-                  icon="options-outline"
-                  onPress={() => {
-                    setShowCalendar(false);
-                    setShowFilters(true);
-                  }}
+    <TabScreenBackground variant="figma" edges={['left', 'right', 'bottom']} disableSafeAreaView>
+      <View style={s.root}>
+      {hydrated && items.length === 0 ? (
+        <View style={s.emptyStateWrap}>
+          <View style={s.emptyStateCard}>
+            <View style={s.emptyStateIconCircle}>
+              <SFIcon name="doc.text" size={36} color={colors.textMuted} />
+            </View>
+            <Text style={s.emptyStateTitle}>No subscriptions yet</Text>
+            <Text style={s.emptyStateSubtitle}>
+              Track your recurring payments and{'\n'}stay on top of your spending
+            </Text>
+            <Pressable
+              onPress={() => {
+                void hapticImpact();
+                openAdd();
+              }}
+              style={({ pressed }) => [s.emptyStateCta, pressed && s.pressed]}
+            >
+              <SFIcon name="plus" size={20} color="#FFFFFF" />
+              <Text style={s.emptyStateCtaText}>Add Your First Subscription</Text>
+            </Pressable>
+          </View>
+        </View>
+      ) : (
+        <FlatList
+          style={{ flex: 1 }}
+          data={listData}
+          keyExtractor={(item) => item.id}
+          renderItem={renderSubscriptionRow}
+          showsVerticalScrollIndicator={false}
+          contentInsetAdjustmentBehavior="automatic"
+          alwaysBounceVertical
+          scrollEventThrottle={16}
+          contentContainerStyle={[
+            s.listContent,
+            {
+              paddingBottom: insets.bottom + 16,
+            },
+          ]}
+          ListHeaderComponent={(
+            <View style={s.figmaTextColumn}>
+            <View style={s.spendingBlock}>
+              <Text style={s.spendingContext}>Spending in {spendingMonthLabel}</Text>
+              {hydrated ? (
+                <AnimatedMoneyAmount
+                  amount={monthly}
+                  currency={currency as any}
+                  style={s.spendingHeroAmount}
+                  countFrom={heroMonthlyCountFrom}
+                  onCountComplete={onHeroMonthlyCountComplete}
                 />
-                <IconCircleButton icon="add" onPress={openAdd} filled />
-                <IconCircleButton icon="settings-outline" onPress={openSettings} />
+              ) : (
+                <SkeletonBlock width={200} height={48} borderRadius={12} style={{ marginBottom: 14 }} />
+              )}
+              <View style={s.spendingBottomRow}>
+                {hydrated ? (
+                  <>
+                    {momPill ? (
+                      <View
+                        style={[
+                          s.momPill,
+                          momPill.tone === 'green' && s.momPillGreen,
+                          momPill.tone === 'red' && s.momPillRed,
+                          momPill.tone === 'neutral' && s.momPillNeutral,
+                        ]}
+                        accessibilityRole="text"
+                        accessibilityLabel={momPill.label}
+                      >
+                        <Text
+                          style={[
+                            s.momPillText,
+                            momPill.tone === 'green' && s.momPillTextGreen,
+                            momPill.tone === 'red' && s.momPillTextRed,
+                            momPill.tone === 'neutral' && s.momPillTextNeutral,
+                            momPill.tone === 'same' && s.momPillTextSame,
+                            androidTextFix,
+                          ]}
+                        >
+                          {momPill.label}
+                        </Text>
+                      </View>
+                    ) : null}
+                    <Text
+                      style={[
+                        s.spendingYearly,
+                        momPill ? s.spendingYearlyInRow : null,
+                        androidTextFix,
+                      ]}
+                    >
+                      {formatMoney(yearlyProjection, currency as any)}/year
+                    </Text>
+                  </>
+                ) : (
+                  <SkeletonBlock width={140} height={18} borderRadius={8} />
+                )}
+              </View>
+            </View>
+
+            <View style={s.pillRow}>
+              <MenuView
+                shouldOpenOnLongPress={false}
+                actions={statusMenuActions as any}
+                onPressAction={({ nativeEvent }) => {
+                  void hapticSelection();
+                  setFilter(nativeEvent.event as SubscriptionFilter);
+                }}
+              >
+                <View style={s.pill}>
+                  <View style={s.pillInnerRow}>
+                    <Text style={s.pillText}>{selectedStatusLabel}</Text>
+                    <SFIcon name="chevron.down" size={13} color={colors.textMuted} />
+                  </View>
+                </View>
+              </MenuView>
+              <MenuView
+                shouldOpenOnLongPress={false}
+                actions={sortMenuActions as any}
+                onPressAction={({ nativeEvent }) => {
+                  void hapticSelection();
+                  setSort(nativeEvent.event as SubscriptionSort);
+                }}
+              >
+                <View style={s.pill}>
+                  <View style={s.pillInnerRow}>
+                    <Text style={s.pillText}>{selectedSortLabel}</Text>
+                    <SFIcon name="chevron.down" size={13} color={colors.textMuted} />
+                  </View>
+                </View>
+              </MenuView>
+            </View>
+            </View>
+          )}
+          ListEmptyComponent={
+            !hydrated ? (
+              <SubscriptionListSkeleton />
+            ) : (
+              <View style={s.emptyFilterCard}>
+                <Text style={s.emptyText}>No subscriptions match this filter.</Text>
               </View>
             )
           }
         />
+      )}
 
-        {hydrated && items.length === 0 ? (
-          <View style={s.emptyStateWrap}>
-            <View style={s.emptyStateCard}>
-              <View style={s.emptyStateIconCircle}>
-                <Ionicons name="receipt-outline" size={36} color={colors.textMuted} />
-              </View>
-              <Text style={s.emptyStateTitle}>No subscriptions yet</Text>
-              <Text style={s.emptyStateSubtitle}>
-                Track your recurring payments and{'\n'}stay on top of your spending
-              </Text>
-              <Pressable
-                onPress={() => {
-                  void hapticImpact();
-                  openAdd();
-                }}
-                style={({ pressed }) => [s.emptyStateCta, pressed && s.pressed]}
-              >
-                <Ionicons name="add" size={20} color="#FFFFFF" />
-                <Text style={s.emptyStateCtaText}>Add Your First Subscription</Text>
-              </Pressable>
-            </View>
-          </View>
-        ) : (
-          <>
-            <ScrollView
-              style={{ flex: 1 }}
-              showsVerticalScrollIndicator={false}
-              contentContainerStyle={[
-                s.listContent,
-                { paddingBottom: insets.bottom + scrollBottomForOverlay },
-              ]}
-            >
-              <View style={s.figmaTextColumn}>
-                <View style={s.spendingBlock}>
-                  <Text style={s.spendingContext}>Spending in {spendingMonthLabel}</Text>
-                  {hydrated ? (
-                    <AnimatedMoneyAmount
-                      amount={monthly}
-                      currency={currency as any}
-                      style={s.spendingHeroAmount}
-                      countFrom={heroMonthlyCountFrom}
-                      onCountComplete={onHeroMonthlyCountComplete}
-                    />
-                  ) : (
-                    <SkeletonBlock width={200} height={48} borderRadius={12} style={{ marginBottom: 14 }} />
-                  )}
-                  <View style={s.spendingBottomRow}>
-                    {hydrated ? (
-                      <>
-                        {momPill ? (
-                          <View
-                            style={[
-                              s.momPill,
-                              momPill.tone === 'green' && s.momPillGreen,
-                              momPill.tone === 'red' && s.momPillRed,
-                              momPill.tone === 'neutral' && s.momPillNeutral,
-                            ]}
-                            accessibilityRole="text"
-                            accessibilityLabel={momPill.label}
-                          >
-                            <Text
-                              style={[
-                                s.momPillText,
-                                momPill.tone === 'green' && s.momPillTextGreen,
-                                momPill.tone === 'red' && s.momPillTextRed,
-                                momPill.tone === 'neutral' && s.momPillTextNeutral,
-                                momPill.tone === 'same' && s.momPillTextSame,
-                                androidTextFix,
-                              ]}
-                            >
-                              {momPill.label}
-                            </Text>
-                          </View>
-                        ) : null}
-                        <Text
-                          style={[
-                            s.spendingYearly,
-                            momPill ? s.spendingYearlyInRow : null,
-                            androidTextFix,
-                          ]}
-                        >
-                          {formatMoney(yearlyProjection, currency as any)}/year
-                        </Text>
-                      </>
-                    ) : (
-                      <SkeletonBlock width={140} height={18} borderRadius={8} />
-                    )}
-                  </View>
-                </View>
-
-                <View style={s.pillRow}>
-                  <Pressable
-                    onPress={() => {
-                      void hapticSelection();
-                      setShowCalendar(false);
-                      setShowFilters(true);
-                    }}
-                    style={({ pressed }) => [s.pill, pressed && s.pressed]}
-                  >
-                    <Text style={s.pillText}>Filter</Text>
-                  </Pressable>
-                  <Pressable
-                    onPress={() => {
-                      void hapticSelection();
-                      setShowFilters(false);
-                      setShowCalendar((open) => !open);
-                    }}
-                    style={({ pressed }) => [
-                      s.pill,
-                      showCalendar && s.pillSelected,
-                      pressed && s.pressed,
-                    ]}
-                  >
-                    <Text style={[s.pillText, showCalendar && s.pillTextSelected]}>Calendar View</Text>
-                  </Pressable>
-                </View>
-              </View>
-
-              {!hydrated ? (
-                <SubscriptionListSkeleton />
-              ) : (
-              <View style={s.listCard}>
-                {visible.length === 0 ? (
-                  <View style={{ paddingHorizontal: 16, paddingVertical: 28 }}>
-                    <Text style={s.emptyText}>No subscriptions match this filter.</Text>
-                  </View>
-                ) : (
-                  visible.map((sub, idx) => (
-                    <View key={sub.id}>
-                      {idx !== 0 && <View style={s.sepFull} />}
-                      <SubscriptionRow sub={sub} onPressItem={openDetail} />
-                    </View>
-                  ))
-                )}
-              </View>
-              )}
-            </ScrollView>
-
-            <View
-              pointerEvents="box-none"
-              style={[
-                s.bottomBarOverlay,
-                {
-                  paddingBottom: bottomOverlayPadBottom,
-                  paddingTop: addBar.gradientFadeHeight + addBar.buttonRowTopPadding,
-                  paddingHorizontal: addBar.paddingLeft,
-                },
-              ]}
-            >
-              <LinearGradient
-                colors={['rgba(245,245,245,0)', colors.bg]}
-                locations={[0, 1]}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 0, y: 1 }}
-                style={StyleSheet.absoluteFill}
-                pointerEvents="none"
-              />
-              <Pressable
-                onPress={() => {
-                  void hapticImpact();
-                  openAdd();
-                }}
-                style={({ pressed }) => [s.addTransactionBtn, pressed && s.pressed]}
-              >
-                <Ionicons name="add" size={20} color="#FFFFFF" />
-                <Text style={s.addTransactionText}>Add Transaction</Text>
-              </Pressable>
-            </View>
-          </>
-        )}
-
-        <AppActionSheet
-          visible={showCalendar}
-          onClose={() => setShowCalendar(false)}
-          maxHeight={calendarSheetMaxHeight}
-          safeAreaInsets={insets}
-        >
-          <View style={s.calendarSheetRoot}>
-            <Text style={s.sheetTitle}>Calendar</Text>
-            <ScrollView
-              style={s.calendarSheetScroll}
-              showsVerticalScrollIndicator={false}
-              keyboardShouldPersistTaps="handled"
-            >
-              <CalendarPanel
-                items={items}
-                currency={currency}
-                calMonth={calMonth}
-                setCalMonth={setCalMonth}
-                contentWidth={calendarSheetContentWidth}
-                onPressItem={(id) => {
-                  setShowCalendar(false);
-                  openDetail(id);
-                }}
-              />
-            </ScrollView>
-            <Pressable
-              onPress={() => {
-                void hapticSelection();
-                setShowCalendar(false);
-              }}
-              style={({ pressed }) => [s.sheetDoneBtn, pressed && s.pressed]}
-            >
-              <Text style={s.sheetDoneText}>Done</Text>
-            </Pressable>
-          </View>
-        </AppActionSheet>
-
-        <AppActionSheet visible={showFilters} onClose={() => setShowFilters(false)} safeAreaInsets={insets}>
-          <View style={s.sheetRoot}>
-            <Text style={s.sheetTitle}>Filters</Text>
-
-            <Text style={s.sheetSection}>Status</Text>
-            <View style={s.sheetOptionsWrap}>
-              {[
-                { id: 'all', label: 'All' },
-                { id: 'active', label: 'Active' },
-                { id: 'trial', label: 'Trial' },
-                { id: 'paused', label: 'Paused' },
-                { id: 'cancelled', label: 'Cancelled' },
-              ].map((opt) => (
-                <Pressable
-                  key={opt.id}
-                  onPress={() => {
-                    void hapticSelection();
-                    setFilter(opt.id as SubscriptionFilter);
-                  }}
-                  style={({ pressed }) => [
-                    s.sheetChip,
-                    filter === opt.id && s.sheetChipActive,
-                    pressed && s.pressed,
-                  ]}
-                >
-                  <Text style={[s.sheetChipText, filter === opt.id && s.sheetChipTextActive]}>{opt.label}</Text>
-                </Pressable>
-              ))}
-            </View>
-
-            <Text style={[s.sheetSection, { marginTop: 12 }]}>Sort</Text>
-            <View style={s.sheetOptionsWrap}>
-              {[
-                { id: 'nearest_renewal', label: 'Nearest' },
-                { id: 'highest_price', label: 'Highest' },
-                { id: 'alpha', label: 'A-Z' },
-                { id: 'recent', label: 'Recent' },
-              ].map((opt) => (
-                <Pressable
-                  key={opt.id}
-                  onPress={() => {
-                    void hapticSelection();
-                    setSort(opt.id as SubscriptionSort);
-                  }}
-                  style={({ pressed }) => [
-                    s.sheetChip,
-                    sort === opt.id && s.sheetChipActive,
-                    pressed && s.pressed,
-                  ]}
-                >
-                  <Text style={[s.sheetChipText, sort === opt.id && s.sheetChipTextActive]}>{opt.label}</Text>
-                </Pressable>
-              ))}
-            </View>
-
-            <View style={s.sheetSpacer} />
-
-            <Pressable
-              onPress={() => {
-                void hapticSelection();
-                setShowFilters(false);
-              }}
-              style={({ pressed }) => [s.sheetDoneBtn, pressed && s.pressed]}
-            >
-              <Text style={s.sheetDoneText}>Done</Text>
-            </Pressable>
-          </View>
-        </AppActionSheet>
       </View>
     </TabScreenBackground>
-  );
-}
-
-// ─── Calendar panel (main scroll or action sheet) ───────────────────────────────
-function CalendarPanel({
-  items, currency, calMonth, setCalMonth, onPressItem, contentWidth,
-}: {
-  items: Subscription[];
-  currency: string;
-  calMonth: { year: number; month: number };
-  setCalMonth: (v: { year: number; month: number }) => void;
-  onPressItem: (id: string) => void;
-  /** When set (e.g. sheet inner width), grid columns match that width instead of the main list inset. */
-  contentWidth?: number;
-}) {
-  const { width } = useWindowDimensions();
-  const sideInset = figma.subscriptions273.cardInsetX * 2;
-  const gridWidth = contentWidth ?? width - sideInset;
-  const cellSize = Math.floor(gridWidth / 7);
-  const { year, month } = calMonth;
-  const today = new Date();
-  const isCurrentMonth = today.getFullYear() === year && today.getMonth() === month;
-
-  const renewalMap = useMemo(() => {
-    const map: Record<number, Subscription[]> = {};
-    for (const sub of items) {
-      if (sub.status === 'cancelled') continue;
-      const dates = getRecurringDatesInMonth(sub, year, month);
-      for (const d of dates) {
-        (map[d.getDate()] ??= []).push(sub);
-      }
-    }
-    return map;
-  }, [items, year, month]);
-
-  const monthTotal = Object.values(renewalMap).flat().reduce((t, s) => t + s.price, 0);
-  const upcomingTotal = Object.entries(renewalMap)
-    .filter(([d]) => Number(d) >= (isCurrentMonth ? today.getDate() : 1))
-    .flatMap(([, ss]) => ss)
-    .reduce((t, s) => t + s.price, 0);
-
-  function prev() {
-    setCalMonth(month === 0 ? { year: year - 1, month: 11 } : { year, month: month - 1 });
-  }
-  function next() {
-    setCalMonth(month === 11 ? { year: year + 1, month: 0 } : { year, month: month + 1 });
-  }
-
-  const daysInMonth = getDaysInMonth(year, month);
-  const firstDay = getFirstWeekdayMondayZero(year, month);
-  const cells: (number | null)[] = [...Array(firstDay).fill(null), ...Array.from({ length: daysInMonth }, (_, i) => i + 1)];
-  while (cells.length % 7 !== 0) cells.push(null);
-
-  return (
-    <View style={{ paddingBottom: 0 }}>
-      {/* Month header */}
-      <View style={s.calHeader}>
-        <Pressable
-          onPress={() => {
-            void hapticSelection();
-            prev();
-          }}
-          style={({ pressed }) => [s.calNavBtn, pressed && s.pressed]}
-        >
-          <Ionicons name="chevron-back" size={18} color={INK} />
-        </Pressable>
-        <View style={{ flex: 1, alignItems: 'center' }}>
-          <Text style={s.calMonthTitle}>{MONTH_NAMES[month]} {year}</Text>
-          <Text style={s.calTotals}>
-            <Text style={s.calTotalBold}>{formatMoney(monthTotal, currency as any)} total</Text>
-            <Text style={s.calTotalDim}>{'  ·  '}{formatMoney(upcomingTotal, currency as any)} upcoming</Text>
-          </Text>
-        </View>
-        <Pressable
-          onPress={() => {
-            void hapticSelection();
-            next();
-          }}
-          style={({ pressed }) => [s.calNavBtn, pressed && s.pressed]}
-        >
-          <Ionicons name="chevron-forward" size={18} color={INK} />
-        </Pressable>
-      </View>
-
-      {/* Today button — scroll already applies cardInsetX */}
-      <View style={{ alignItems: 'flex-end', paddingHorizontal: 0, marginBottom: 8 }}>
-        <Pressable
-          onPress={() => {
-            void hapticSelection();
-            setCalMonth({ year: today.getFullYear(), month: today.getMonth() });
-          }}
-          style={({ pressed }) => [s.todayBtn, pressed && s.pressed]}
-        >
-          <Text style={s.todayBtnText}>Today</Text>
-        </Pressable>
-      </View>
-
-      {/* Day labels */}
-      <View style={[s.calDayRow, { paddingHorizontal: 0 }]}>
-        {WEEKDAY_LABELS_SHORT.map((d) => (
-          <Text key={d} style={[s.calDayLabel, { width: cellSize }]}>{d}</Text>
-        ))}
-      </View>
-
-      {/* Grid */}
-      <View style={{ paddingHorizontal: 0 }}>
-        {Array.from({ length: cells.length / 7 }, (_, row) => (
-          <View key={row} style={s.calRow}>
-            {cells.slice(row * 7, row * 7 + 7).map((day, col) => {
-              const isToday = isCurrentMonth && day === today.getDate();
-              const subs = day ? (renewalMap[day] ?? []) : [];
-              return (
-                <View key={col} style={[s.calCell, { width: cellSize, minHeight: cellSize + 8 }]}>
-                  {day != null && (
-                    <>
-                      <View style={[s.calDayNumWrap, isToday && s.calDayNumToday]}>
-                        <Text style={[s.calDayNum, isToday && s.calDayNumTextToday]}>{day}</Text>
-                      </View>
-                      {subs.length > 0 && (
-                        <View style={s.calLogos}>
-                          {subs.slice(0, 2).map((sub) => (
-                            <Pressable
-                              key={sub.id}
-                              onPress={() => {
-                                void hapticSelection();
-                                onPressItem(sub.id);
-                              }}
-                              style={({ pressed }) => [{ opacity: pressed ? 0.6 : 1 }]}
-                            >
-                              {sub.domain ? (
-                                <CompanyLogo domain={sub.domain} size={20} rounded={6} fallbackText={sub.serviceName} />
-                              ) : (
-                                <View style={s.calFallback}>
-                                  <Text style={s.calFallbackText}>{(sub.serviceName[0] ?? '?').toUpperCase()}</Text>
-                                </View>
-                              )}
-                            </Pressable>
-                          ))}
-                          {subs.length > 2 && (
-                            <Text style={s.calMore}>+{subs.length - 2}</Text>
-                          )}
-                        </View>
-                      )}
-                    </>
-                  )}
-                </View>
-              );
-            })}
-          </View>
-        ))}
-      </View>
-    </View>
   );
 }
 
@@ -609,11 +315,11 @@ function SubscriptionRow({ sub, onPressItem }: { sub: Subscription; onPressItem:
         void hapticSelection();
         onPressItem(sub.id);
       }}
-      style={({ pressed }) => [s.subRow, pressed && s.pressed]}
+      style={({ pressed }) => [s.subRow, pressed && s.subRowPressed]}
     >
       <View style={s.logoCircle}>
         {sub.domain ? (
-          <CompanyLogo domain={sub.domain} size={36} rounded={8} fallbackText={sub.serviceName} />
+          <CompanyLogo domain={sub.domain} size={42} rounded={10} fallbackText={sub.serviceName} />
         ) : (
           <FallbackLogo name={sub.serviceName} />
         )}
@@ -646,19 +352,11 @@ const androidTextFix =
 
 // ─── Styles ───────────────────────────────────────────────────────────────────
 const s = StyleSheet.create({
-  pressed: { opacity: 0.75 },
-
-  figmaSettingsBtn: {
-    width: figma.subscriptions273.settingsButtonSize,
-    height: figma.subscriptions273.settingsButtonSize,
-    borderRadius: figma.subscriptions273.settingsButtonSize / 2,
-    backgroundColor: colors.surface,
-    borderWidth: 1,
-    borderColor: figma.border.default,
-    alignItems: 'center',
-    justifyContent: 'center',
-    ...figma.subscriptions273.settingsShadow,
+  root: {
+    flex: 1,
+    backgroundColor: colors.bg,
   },
+  pressed: { opacity: 0.75 },
 
   /** 16px card inset from screen; text column uses +20 inside `figmaTextColumn` → 36px */
   listContent: {
@@ -756,27 +454,40 @@ const s = StyleSheet.create({
   pill: {
     ...figma.subscriptions273.pill,
   },
-  pillSelected: {
-    backgroundColor: INK,
+  pillInnerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
   },
   pillText: {
     ...figma.subscriptions273.pillLabel,
     ...androidTextFix,
   },
-  pillTextSelected: {
-    color: '#FFFFFF',
-  },
 
-  listCard: {
-    backgroundColor: CARD,
-    borderRadius: figma.subscriptions273.listCardRadius,
-    overflow: 'hidden',
-    ...figma.subscriptions273.shadow,
+  rowCardItem: {
+    backgroundColor: IOS_CARD_BG,
+    overflow: 'hidden'
+  },
+  rowCardFirst: {
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+  },
+  rowCardLast: {
+    borderBottomLeftRadius: 24,
+    borderBottomRightRadius: 24,
+    marginBottom: 2,
+  },
+  emptyFilterCard: {
+    backgroundColor: IOS_CARD_BG,
+    borderRadius: 24,
+    paddingHorizontal: 16,
+    paddingVertical: 28,
   },
   sepFull: {
     height: StyleSheet.hairlineWidth,
-    backgroundColor: figma.subscriptions273.listDivider,
-    marginHorizontal: figma.subscriptions273.rowPaddingH,
+    backgroundColor: IOS_SEPARATOR,
+    marginLeft: 90,
+    marginRight: figma.subscriptions273.rowPaddingH,
   },
 
   subRow: {
@@ -784,15 +495,19 @@ const s = StyleSheet.create({
     alignItems: 'center',
     gap: figma.subscriptions273.rowGap,
     paddingHorizontal: figma.subscriptions273.rowPaddingH,
-    paddingVertical: figma.subscriptions273.rowPaddingV,
+    paddingVertical: 18,
+    minHeight: 96,
+  },
+  subRowPressed: {
+    backgroundColor: IOS_ROW_HIGHLIGHT,
   },
   logoCircle: {
-    width: figma.subscriptions273.logoSize,
-    height: figma.subscriptions273.logoSize,
-    borderRadius: figma.subscriptions273.logoSize / 2,
+    width: 68,
+    height: 68,
+    borderRadius: 34,
     backgroundColor: colors.surface,
     borderWidth: 1,
-    borderColor: figma.border.default,
+    borderColor: iosDynamic('rgba(60, 60, 67, 0.18)', 'rgba(84, 84, 88, 0.6)', figma.border.default),
     alignItems: 'center',
     justifyContent: 'center',
     overflow: 'hidden',
@@ -804,12 +519,21 @@ const s = StyleSheet.create({
     justifyContent: 'center',
   },
   rowName: {
-    ...figma.subscriptions273.rowTitle,
+    fontFamily: 'SF Pro Display',
+    fontSize: 17,
+    lineHeight: 22,
+    fontWeight: '600',
+    color: IOS_PRIMARY_LABEL,
     textAlign: 'left',
     ...androidTextFix,
   },
   rowBillingLine: {
-    ...figma.subscriptions273.rowBilling,
+    marginTop: 2,
+    fontFamily: 'SF Pro Display',
+    fontSize: 16,
+    lineHeight: 21,
+    fontWeight: '500',
+    color: IOS_SECONDARY_LABEL,
     textAlign: 'left',
     ...androidTextFix,
   },
@@ -819,53 +543,33 @@ const s = StyleSheet.create({
     minWidth: 88,
   },
   rowPriceRight: {
-    ...figma.subscriptions273.rowPrice,
+    fontFamily: 'SF Pro Display',
+    fontSize: 17,
+    lineHeight: 22,
+    fontWeight: '600',
+    color: IOS_PRIMARY_LABEL,
     textAlign: 'right',
     ...androidTextFix,
   },
   rowStatusText: {
-    ...figma.subscriptions273.rowStatus,
+    marginTop: 2,
+    fontFamily: 'SF Pro Display',
+    fontSize: 16,
+    lineHeight: 21,
+    fontWeight: '500',
     textAlign: 'right',
     ...androidTextFix,
   },
   fallbackLogoInner: {
-    width: 36,
-    height: 36,
-    borderRadius: 10,
+    width: 42,
+    height: 42,
+    borderRadius: 12,
     backgroundColor: BG,
     alignItems: 'center',
     justifyContent: 'center',
   },
   fallbackText: { fontSize: 17, fontWeight: '800', color: INK },
 
-  /** Absolute bottom stack: gradient + Add Transaction (see `bottomBarOverlay`) */
-  bottomBarOverlay: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    bottom: 0,
-    alignItems: 'flex-start',
-  },
-  addTransactionBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    alignSelf: 'flex-start',
-    gap: figma.subscriptions273.bottomCta.iconLabelGap,
-    backgroundColor: INK,
-    borderRadius: figma.subscriptions273.bottomCta.borderRadius,
-    paddingVertical: figma.subscriptions273.bottomCta.paddingVertical,
-    paddingHorizontal: figma.subscriptions273.bottomCta.paddingHorizontal,
-    maxWidth: '100%',
-  },
-  addTransactionText: {
-    color: '#FFFFFF',
-    fontSize: figma.subscriptions273.bottomCta.fontSize,
-    fontWeight: figma.subscriptions273.bottomCta.fontWeight,
-    lineHeight: figma.subscriptions273.bottomCta.lineHeight,
-    letterSpacing: figma.subscriptions273.bottomCta.letterSpacing,
-    ...androidTextFix,
-  },
   emptyText: { textAlign: 'left', fontSize: 14, fontWeight: '500', color: DIM },
 
   emptyStateWrap: {
@@ -931,77 +635,4 @@ const s = StyleSheet.create({
     fontWeight: '600',
     color: '#FFFFFF',
   },
-  sheetRoot: { flex: 1, minHeight: 0 },
-  sheetTitle: { ...sheetTypography.title },
-  sheetSection: {
-    ...sheetTypography.section,
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-    marginTop: 0,
-    marginBottom: 8,
-  },
-  sheetOptionsWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  sheetChip: {
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 999,
-    backgroundColor: BG,
-  },
-  sheetChipActive: { backgroundColor: INK },
-  sheetChipText: { fontFamily: 'SF Pro Display', fontSize: 13, fontWeight: '600', color: DIM },
-  sheetChipTextActive: { color: '#FFFFFF' },
-  sheetSpacer: { flex: 1, minHeight: 12 },
-  sheetDoneBtn: {
-    backgroundColor: INK,
-    borderRadius: 14,
-    alignItems: 'center',
-    paddingVertical: 12,
-  },
-  sheetDoneText: { ...sheetTypography.done },
-
-  calendarSheetRoot: {
-    flex: 1,
-    minHeight: 0,
-  },
-  calendarSheetScroll: {
-    flex: 1,
-    minHeight: 0,
-  },
-
-  // Calendar
-  calHeader: {
-    flexDirection: 'row', alignItems: 'center',
-    paddingHorizontal: 0, paddingTop: 4, paddingBottom: 6,
-  },
-  calNavBtn: {
-    width: 34, height: 34, borderRadius: 17,
-    backgroundColor: CARD, alignItems: 'center', justifyContent: 'center',
-  },
-  calMonthTitle: { fontSize: 20, fontWeight: '800', color: INK },
-  calTotals: { marginTop: 2, fontSize: 12 },
-  calTotalBold: { fontWeight: '700', color: INK },
-  calTotalDim: { fontWeight: '500', color: DIM },
-  todayBtn: {
-    paddingVertical: 6, paddingHorizontal: 12,
-    borderRadius: 14, backgroundColor: CARD,
-  },
-  todayBtnText: { fontSize: 12, fontWeight: '700', color: INK },
-  calDayRow: { flexDirection: 'row', marginBottom: 4 },
-  calDayLabel: { textAlign: 'center', fontSize: 11, fontWeight: '700', color: DIM, paddingVertical: 4 },
-  calRow: { flexDirection: 'row' },
-  calCell: {
-    alignItems: 'center', paddingTop: 6, paddingBottom: 4,
-    borderTopWidth: 1, borderTopColor: SEP,
-  },
-  calDayNumWrap: { width: 22, height: 22, borderRadius: 11, alignItems: 'center', justifyContent: 'center' },
-  calDayNumToday: { backgroundColor: INK },
-  calDayNum: { fontSize: 12, fontWeight: '600', color: DIM },
-  calDayNumTextToday: { color: '#fff', fontWeight: '800' },
-  calLogos: { flexDirection: 'row', flexWrap: 'wrap', gap: 2, marginTop: 3, justifyContent: 'center' },
-  calFallback: {
-    width: 20, height: 20, borderRadius: 6,
-    backgroundColor: BG, alignItems: 'center', justifyContent: 'center',
-  },
-  calFallbackText: { fontSize: 8, fontWeight: '800', color: INK },
-  calMore: { fontSize: 8, fontWeight: '800', color: DIM, marginTop: 2 },
 });

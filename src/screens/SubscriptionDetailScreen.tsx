@@ -1,6 +1,5 @@
-import React from 'react';
+import React, { useLayoutEffect } from 'react';
 import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { CompanyLogo } from '../components/CompanyLogo';
@@ -52,9 +51,28 @@ export function SubscriptionDetailScreen({ navigation, route }: Props) {
   const update = useSubscriptionsStore((s) => s.update);
   const remove = useSubscriptionsStore((s) => s.remove);
 
+  useLayoutEffect(() => {
+    navigation.setOptions({
+      title: sub?.serviceName ?? 'Subscription',
+      headerRight: sub
+        ? () => (
+            <Pressable
+              onPress={() => {
+                void hapticSelection();
+                navigation.navigate('EditSubscription', { subscriptionId: sub.id });
+              }}
+              hitSlop={8}
+            >
+              <Text style={{ fontSize: 17, fontWeight: '600', color: INK }}>Edit</Text>
+            </Pressable>
+          )
+        : undefined,
+    });
+  }, [navigation, sub]);
+
   if (!sub) {
     return (
-      <TabScreenBackground variant="figma" edges={['top', 'left', 'right']}>
+      <TabScreenBackground variant="figma" edges={['left', 'right']}>
         <View style={{ flex: 1, padding: 20, justifyContent: 'center' }}>
           <Text style={{ color: INK }}>Subscription not found.</Text>
           <Pressable
@@ -125,56 +143,19 @@ export function SubscriptionDetailScreen({ navigation, route }: Props) {
     );
   }
 
-  function goBack() {
-    void hapticSelection();
-    navigation.goBack();
-  }
-
-  function openEdit() {
-    void hapticSelection();
-    navigation.navigate('EditSubscription', { subscriptionId: subscription.id });
-  }
-
   const reminderLine = subscription.reminderEnabled
     ? `${subscription.reminderDaysBefore === 0 ? 'Same day' : `${subscription.reminderDaysBefore} day${subscription.reminderDaysBefore > 1 ? 's' : ''} before`} at ${subscription.reminderTime}`
     : 'Off';
 
   return (
-    <TabScreenBackground variant="figma" edges={['top', 'left', 'right']}>
+    <TabScreenBackground variant="figma" edges={['left', 'right']}>
       <View style={s.root}>
-        {/* Custom bar — no native stack header / ScreenHeader */}
-        {/* Safe area is applied by TabScreenBackground; only add small breathing room */}
-        <View style={s.topBar}>
-          <View style={s.topBarSide}>
-            <Pressable
-              onPress={goBack}
-              hitSlop={12}
-              style={({ pressed }) => [s.iconBtn, pressed && s.pressed]}
-              accessibilityRole="button"
-              accessibilityLabel="Back"
-            >
-              <Ionicons name="chevron-back" size={24} color={INK} />
-            </Pressable>
-          </View>
-          <Text style={s.topBarTitle} numberOfLines={1}>
-            Subscription
-          </Text>
-          <View style={[s.topBarSide, { alignItems: 'flex-end' }]}>
-            <Pressable
-              onPress={openEdit}
-              hitSlop={12}
-              style={({ pressed }) => [s.editBtn, pressed && s.pressed]}
-            >
-              <Text style={s.editBtnText}>Edit</Text>
-            </Pressable>
-          </View>
-        </View>
-
         <ScrollView
           style={s.scroll}
           contentContainerStyle={[s.scrollInner, { paddingBottom: Math.max(insets.bottom, 12) + 20 }]}
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
+          contentInsetAdjustmentBehavior="automatic"
         >
           {/* Hero — centered block */}
           <View style={s.hero}>
@@ -342,39 +323,6 @@ const s = StyleSheet.create({
   pressed: { opacity: 0.75 },
   scroll: { flex: 1 },
   scrollInner: { paddingHorizontal: spacing.screenX },
-
-  topBar: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: spacing.screenX - 4,
-    paddingTop: 8,
-    paddingBottom: 8,
-  },
-  topBarSide: {
-    width: 72,
-    justifyContent: 'center',
-  },
-  topBarTitle: {
-    flex: 1,
-    fontSize: 17,
-    fontWeight: '600',
-    color: INK,
-    textAlign: 'center',
-  },
-  iconBtn: {
-    paddingVertical: 8,
-    paddingHorizontal: 4,
-    alignSelf: 'flex-start',
-  },
-  editBtn: {
-    paddingVertical: 8,
-    paddingHorizontal: 8,
-  },
-  editBtnText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: INK,
-  },
 
   hero: {
     alignItems: 'center',

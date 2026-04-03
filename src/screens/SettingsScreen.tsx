@@ -11,15 +11,14 @@ import {
   View,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
-import { Ionicons } from '@expo/vector-icons';
+import { SFIcon } from '../components/SFIcon';
 import * as Notifications from 'expo-notifications';
 import * as Haptics from 'expo-haptics';
 import { hapticSelection } from '../ui/haptics';
 import { sendTestNotification } from '../features/notifications/service';
 import { colors, spacing } from '../ui/theme';
-import { PageHeader, SectionLabel, SurfaceCard, AppButton } from '../ui/components';
+import { SectionLabel, SurfaceCard, AppButton } from '../ui/components';
 import { TabScreenBackground } from '../components/TabScreenBackground';
-import { USE_FIGMA_SINGLE_PAGE_NAV } from '../config/featureFlags';
 import { useAuthStore } from '../features/auth/store';
 import { usePremiumStore } from '../features/premium/store';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -87,21 +86,8 @@ export function SettingsScreen() {
   const notificationsActive = masterEnabled && permStatus === 'granted';
 
   return (
-    <TabScreenBackground variant="figma" edges={['top', 'left', 'right']}>
-      <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-        {USE_FIGMA_SINGLE_PAGE_NAV ? (
-          <Pressable
-            onPress={() => {
-              void hapticSelection();
-              navigation.goBack();
-            }}
-            style={({ pressed }) => [styles.backRow, pressed && { opacity: 0.7 }]}
-          >
-            <Ionicons name="chevron-back" size={22} color={colors.text} />
-            <Text style={styles.backText}>Subscriptions</Text>
-          </Pressable>
-        ) : null}
-        <PageHeader title="Settings" titleVariant="figma" />
+    <TabScreenBackground variant="figma" edges={['left', 'right', 'bottom']}>
+      <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false} contentInsetAdjustmentBehavior="automatic">
 
         {/* Premium */}
         {!isPremium && (
@@ -115,12 +101,12 @@ export function SettingsScreen() {
                 }}
                 style={({ pressed }) => [styles.premiumBtn, pressed && styles.pressed]}
               >
-                <Ionicons name="diamond-outline" size={20} color="#CB30E0" />
+                <SFIcon name="suit.diamond" size={20} color="#CB30E0" />
                 <View style={{ flex: 1 }}>
                   <Text style={styles.premiumTitle}>Upgrade to Premium</Text>
                   <Text style={styles.premiumSub}>Unlock all features</Text>
                 </View>
-                <Ionicons name="chevron-forward" size={18} color={colors.textMuted} />
+                <SFIcon name="chevron.right" size={18} color={colors.textMuted} />
               </Pressable>
             </SurfaceCard>
           </>
@@ -250,7 +236,7 @@ const styles = StyleSheet.create({
   },
   backText: { fontSize: 16, fontWeight: '600', color: colors.text },
 
-  content: { paddingBottom: spacing.screenX, paddingHorizontal: spacing.screenX },
+  content: { paddingBottom: 40, paddingHorizontal: spacing.screenX },
 
   card: {
     paddingVertical: 4,

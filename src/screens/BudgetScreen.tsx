@@ -1,22 +1,24 @@
 import React from 'react';
-import { StyleSheet, Text, View } from 'react-native';
-import { colors } from '../ui/theme';
-import { PageHeader } from '../ui/components';
+import { ScrollView, StyleSheet, Text } from 'react-native';
+import { colors, spacing } from '../ui/theme';
 import { TabScreenBackground } from '../components/TabScreenBackground';
 
 export function BudgetScreen() {
   return (
-    <TabScreenBackground variant="figma">
-      <View style={styles.wrap}>
-        <PageHeader title="Budget" titleVariant="figma" />
+    <TabScreenBackground variant="figma" edges={['left', 'right', 'bottom']}>
+      <ScrollView
+        contentContainerStyle={styles.content}
+        showsVerticalScrollIndicator={false}
+        contentInsetAdjustmentBehavior="automatic"
+      >
         <Text style={styles.sub}>Placeholder screen.</Text>
-      </View>
+      </ScrollView>
     </TabScreenBackground>
   );
 }
 
 const styles = StyleSheet.create({
-  wrap: { gap: 8 },
+  content: { paddingHorizontal: spacing.screenX, paddingTop: 8, paddingBottom: 40, gap: 8 },
   sub: { fontSize: 15, fontWeight: '600', color: colors.textMuted },
 });
 

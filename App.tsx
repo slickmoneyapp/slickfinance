@@ -1,6 +1,6 @@
 import { StatusBar } from 'expo-status-bar';
 import React, { useEffect } from 'react';
-import { Platform } from 'react-native';
+import { Platform, Pressable } from 'react-native';
 import { useFonts, BricolageGrotesque_800ExtraBold } from '@expo-google-fonts/bricolage-grotesque';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeBottomTabNavigator } from '@bottom-tabs/react-navigation';
@@ -10,9 +10,7 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { adapty } from 'react-native-adapty';
 
 import { SubscriptionsSkeleton } from './src/components/Skeleton';
-import { HomeScreen } from './src/screens/HomeScreen';
-import { HomeStackNavigator } from './src/navigation/HomeStack';
-import { getHomeNativeHeaderOptions } from './src/navigation/homeStackOptions';
+import { SFIcon } from './src/components/SFIcon';
 import { BudgetScreen } from './src/screens/BudgetScreen';
 import { SubscriptionsScreen } from './src/screens/SubscriptionsScreen';
 import { InvestScreen } from './src/screens/InvestScreen';
@@ -21,7 +19,6 @@ import { LoginScreen } from './src/screens/LoginScreen';
 import {
   ENABLE_BUDGET_TAB,
   ENABLE_INVEST_TAB,
-  USE_FIGMA_SINGLE_PAGE_NAV,
 } from './src/config/featureFlags';
 import { AddSubscriptionScreen } from './src/screens/AddSubscriptionScreen';
 import { SubscriptionDetailScreen } from './src/screens/SubscriptionDetailScreen';
@@ -29,39 +26,130 @@ import { EditSubscriptionScreen } from './src/screens/EditSubscriptionScreen';
 import { PaywallScreen } from './src/screens/PaywallScreen';
 import { useNotificationSync } from './src/hooks/useNotificationSync';
 import { prefetchTabBackground } from './src/assets/tabBackground';
-
 import { useAuthStore } from './src/features/auth/store';
 import { useSubscriptionsStore } from './src/features/subscriptions/store';
 import { usePremiumStore } from './src/features/premium/store';
-import { ForceUpdateGate } from './src/components/ForceUpdateGate';
+import { navigateRoot } from './src/navigation/navigateRoot';
+import { hapticImpact } from './src/ui/haptics';
 
-/**
- * Tab routes (Budget / Invest kept for types + future tabs; hidden from bar via featureFlags).
- */
 export type RootTabsParamList = {
-  Home: undefined;
-  Budget: undefined;
   Subscriptions: undefined;
+  Budget: undefined;
   Invest: undefined;
   Settings: undefined;
 };
 
 const Tabs = createNativeBottomTabNavigator<RootTabsParamList>();
 export type RootStackParamList = {
-  /** Classic app shell (bottom tabs) */
   Tabs: undefined;
-  /** Figma-style flat stack — same screens, no tab bar */
-  Subscriptions: undefined;
-  Home: undefined;
-  Settings: undefined;
-  Budget: undefined;
-  Invest: undefined;
   AddSubscription: undefined;
   SubscriptionDetail: { subscriptionId: string };
   EditSubscription: { subscriptionId: string };
   Paywall: undefined;
 };
 const Stack = createNativeStackNavigator<RootStackParamList>();
+
+type SubsStackParamList = { SubscriptionsList: undefined };
+const SubsStack = createNativeStackNavigator<SubsStackParamList>();
+
+function SubscriptionsStackScreen() {
+  return (
+    <SubsStack.Navigator>
+      <SubsStack.Screen
+        name="SubscriptionsList"
+        component={SubscriptionsScreen}
+        options={({ navigation }) => ({
+          title: 'Subscriptions',
+          headerLargeTitle: true,
+          headerTransparent: true,
+          headerLargeStyle: { backgroundColor: 'transparent' },
+          headerStyle: { backgroundColor: 'transparent' },
+          headerShadowVisible: false,
+          headerRight: () => (
+            <Pressable
+              onPress={() => {
+                void hapticImpact();
+                navigateRoot(navigation as any, 'AddSubscription');
+              }}
+              hitSlop={8}
+              accessibilityRole="button"
+              accessibilityLabel="Add subscription"
+              style={{ paddingHorizontal: 2, paddingVertical: 2 }}
+            >
+              <SFIcon name="plus" size={20} color="#007AFF" weight="semibold" />
+            </Pressable>
+          ),
+        })}
+      />
+    </SubsStack.Navigator>
+  );
+}
+
+type BudgetStackParamList = { BudgetMain: undefined };
+const BudgetStack = createNativeStackNavigator<BudgetStackParamList>();
+
+function BudgetStackScreen() {
+  return (
+    <BudgetStack.Navigator>
+      <BudgetStack.Screen
+        name="BudgetMain"
+        component={BudgetScreen}
+        options={{
+          title: 'Budget',
+          headerLargeTitle: true,
+          headerTransparent: true,
+          headerLargeStyle: { backgroundColor: 'transparent' },
+          headerStyle: { backgroundColor: 'transparent' },
+          headerShadowVisible: false,
+        }}
+      />
+    </BudgetStack.Navigator>
+  );
+}
+
+type InvestStackParamList = { InvestMain: undefined };
+const InvestStack = createNativeStackNavigator<InvestStackParamList>();
+
+function InvestStackScreen() {
+  return (
+    <InvestStack.Navigator>
+      <InvestStack.Screen
+        name="InvestMain"
+        component={InvestScreen}
+        options={{
+          title: 'Invest',
+          headerLargeTitle: true,
+          headerTransparent: true,
+          headerLargeStyle: { backgroundColor: 'transparent' },
+          headerStyle: { backgroundColor: 'transparent' },
+          headerShadowVisible: false,
+        }}
+      />
+    </InvestStack.Navigator>
+  );
+}
+
+type ProfileStackParamList = { ProfileMain: undefined };
+const ProfileStack = createNativeStackNavigator<ProfileStackParamList>();
+
+function ProfileStackScreen() {
+  return (
+    <ProfileStack.Navigator>
+      <ProfileStack.Screen
+        name="ProfileMain"
+        component={SettingsScreen}
+        options={{
+          title: 'Profile',
+          headerLargeTitle: true,
+          headerTransparent: true,
+          headerLargeStyle: { backgroundColor: 'transparent' },
+          headerStyle: { backgroundColor: 'transparent' },
+          headerShadowVisible: false,
+        }}
+      />
+    </ProfileStack.Navigator>
+  );
+}
 
 function AppInner() {
   const [fontsLoaded] = useFonts({ BricolageGrotesque_800ExtraBold });
@@ -109,50 +197,33 @@ function AppInner() {
   return (
     <>
       <StatusBar style="dark" />
-      <Stack.Navigator
-        initialRouteName={USE_FIGMA_SINGLE_PAGE_NAV ? 'Subscriptions' : 'Tabs'}
-      >
-        {USE_FIGMA_SINGLE_PAGE_NAV ? (
-          <>
-            <Stack.Screen name="Subscriptions" component={SubscriptionsScreen} options={{ headerShown: false }} />
-            <Stack.Screen name="Home" component={HomeScreen} options={getHomeNativeHeaderOptions()} />
-            <Stack.Screen name="Settings" component={SettingsScreen} options={{ headerShown: false }} />
-            {ENABLE_BUDGET_TAB ? (
-              <Stack.Screen name="Budget" component={BudgetScreen} options={{ headerShown: false }} />
-            ) : null}
-            {ENABLE_INVEST_TAB ? (
-              <Stack.Screen name="Invest" component={InvestScreen} options={{ headerShown: false }} />
-            ) : null}
-          </>
-        ) : (
-          <Stack.Screen name="Tabs" component={RootTabs} options={{ headerShown: false }} />
-        )}
+      <Stack.Navigator initialRouteName="Tabs">
+        <Stack.Screen name="Tabs" component={RootTabs} options={{ headerShown: false }} />
         <Stack.Screen
           name="AddSubscription"
           component={AddSubscriptionScreen}
           options={{
-            /**
-             * `formSheet` ties vertical scrolling to iOS sheet detents (“pushing up” instead of scrolling the list).
-             * Full-screen modal behaves like a normal screen so the picker list ScrollView scrolls reliably.
-             */
-            presentation: Platform.OS === 'ios' ? 'fullScreenModal' : 'modal',
+            presentation: Platform.OS === 'ios' ? 'formSheet' : 'modal',
             headerShown: false,
-            animation: 'slide_from_bottom',
             contentStyle: { flex: 1 },
           }}
         />
         <Stack.Screen
           name="SubscriptionDetail"
           component={SubscriptionDetailScreen}
-          options={{ headerShown: false }}
+          options={{
+            presentation: Platform.OS === 'ios' ? 'formSheet' : 'modal',
+            headerTransparent: true,
+            headerStyle: { backgroundColor: 'transparent' },
+            headerShadowVisible: false,
+          }}
         />
         <Stack.Screen
           name="EditSubscription"
           component={EditSubscriptionScreen}
           options={{
-            presentation: Platform.OS === 'ios' ? 'fullScreenModal' : 'modal',
+            presentation: Platform.OS === 'ios' ? 'formSheet' : 'modal',
             headerShown: false,
-            animation: 'slide_from_bottom',
             contentStyle: { flex: 1 },
           }}
         />
@@ -160,9 +231,8 @@ function AppInner() {
           name="Paywall"
           component={PaywallScreen}
           options={{
-            presentation: Platform.OS === 'ios' ? 'fullScreenModal' : 'modal',
+            presentation: Platform.OS === 'ios' ? 'formSheet' : 'modal',
             headerShown: false,
-            animation: 'slide_from_bottom',
             contentStyle: { flex: 1 },
           }}
         />
@@ -199,29 +269,45 @@ export default function App() {
   );
 }
 
-const SF_SYMBOLS: Record<string, string> = {
-  Home: 'house.fill',
-  Budget: 'chart.pie.fill',
-  Subscriptions: 'creditcard.fill',
-  Invest: 'chart.line.uptrend.xyaxis',
-  Settings: 'gearshape.fill',
-};
-
 function RootTabs() {
   return (
     <Tabs.Navigator
-      screenOptions={({ route }) => ({
-        headerShown: false,
-        tabBarActiveTintColor: '#CB30E0',
-        tabBarInactiveTintColor: '#8C8C8C',
-        tabBarIcon: () => ({ sfSymbol: SF_SYMBOLS[route.name] ?? 'questionmark.circle' }),
-      })}
+      tabBarActiveTintColor="#CB30E0"
+      tabBarInactiveTintColor="#8C8C8C"
     >
-      <Tabs.Screen name="Home" component={HomeStackNavigator} />
-      {ENABLE_BUDGET_TAB ? <Tabs.Screen name="Budget" component={BudgetScreen} /> : null}
-      <Tabs.Screen name="Subscriptions" component={SubscriptionsScreen} />
-      {ENABLE_INVEST_TAB ? <Tabs.Screen name="Invest" component={InvestScreen} /> : null}
-      <Tabs.Screen name="Settings" component={SettingsScreen} />
+      <Tabs.Screen
+        name="Subscriptions"
+        component={SubscriptionsStackScreen}
+        options={{
+          tabBarIcon: () => ({ sfSymbol: 'creditcard' }),
+        }}
+      />
+      {ENABLE_BUDGET_TAB ? (
+        <Tabs.Screen
+          name="Budget"
+          component={BudgetStackScreen}
+          options={{
+            tabBarIcon: () => ({ sfSymbol: 'chart.pie' }),
+          }}
+        />
+      ) : null}
+      {ENABLE_INVEST_TAB ? (
+        <Tabs.Screen
+          name="Invest"
+          component={InvestStackScreen}
+          options={{
+            tabBarIcon: () => ({ sfSymbol: 'chart.line.uptrend.xyaxis' as any }),
+          }}
+        />
+      ) : null}
+      <Tabs.Screen
+        name="Settings"
+        component={ProfileStackScreen}
+        options={{
+          title: 'Profile',
+          tabBarIcon: () => ({ sfSymbol: 'person.circle' }),
+        }}
+      />
     </Tabs.Navigator>
   );
 }

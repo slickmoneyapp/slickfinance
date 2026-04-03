@@ -13,7 +13,7 @@ import {
 } from 'react-native';
 import { DatePickerModal } from '../components/DatePickerModal';
 import { TimePickerModal } from '../components/TimePickerModal';
-import { Ionicons } from '@expo/vector-icons';
+import { SFIcon } from '../components/SFIcon';
 import { useSafeAreaInsets, type EdgeInsets } from 'react-native-safe-area-context';
 import { hapticImpactMedium, hapticSelection } from '../ui/haptics';
 import { AppActionSheet } from '../components/AppActionSheet';
@@ -83,12 +83,10 @@ function reminderLabel(days: number, time: string) {
 
 export function EditSubscriptionScreen({ navigation, route }: Props) {
   const safeAreaInsets = useSafeAreaInsets();
-  /** fullScreenModal stacks often report 0 insets — fall back so header/sheets match device. */
   const layoutInsets = useMemo<EdgeInsets>(
     () => ({
-      top: safeAreaInsets.top > 0 ? safeAreaInsets.top : Platform.OS === 'ios' ? 59 : safeAreaInsets.top,
-      bottom:
-        safeAreaInsets.bottom > 0 ? safeAreaInsets.bottom : Platform.OS === 'ios' ? 34 : safeAreaInsets.bottom,
+      top: Math.max(safeAreaInsets.top, 12),
+      bottom: Math.max(safeAreaInsets.bottom, 12),
       left: safeAreaInsets.left,
       right: safeAreaInsets.right,
     }),
@@ -240,7 +238,7 @@ export function EditSubscriptionScreen({ navigation, route }: Props) {
     >
       <ScreenHeader
         title="Edit Subscription"
-        left={<IconCircleButton icon="chevron-back" onPress={() => navigation.goBack()} />}
+        left={<IconCircleButton icon="chevron.left" onPress={() => navigation.goBack()} />}
         right={<AppButton label="Save" onPress={handleSave} loading={saving} />}
       />
       <ScrollView
@@ -279,7 +277,7 @@ export function EditSubscriptionScreen({ navigation, route }: Props) {
                 style={({ pressed }) => [s.currencyPill, pressed && s.pressed]}
               >
                 <Text style={s.currencyPillText}>{CURRENCY_SYMBOLS[currency]}</Text>
-                <Ionicons name="chevron-forward" size={12} color={DIM} />
+                <SFIcon name="chevron.right" size={12} color={DIM} />
               </Pressable>
 
               <Pressable
@@ -526,15 +524,15 @@ export function EditSubscriptionScreen({ navigation, route }: Props) {
                     style={({ pressed }) => [s.catOption, pressed && s.pressed]}
                   >
                     <View style={[s.catIconWrap, category === item && s.catIconWrapSelected]}>
-                      <Ionicons
-                        name={(CATEGORY_ICONS[item] ?? 'ellipsis-horizontal-circle-outline') as any}
+                      <SFIcon
+                        name={CATEGORY_ICONS[item] ?? 'ellipsis.circle'}
                         size={20}
                         color={category === item ? '#fff' : INK}
                       />
                     </View>
                     <Text style={s.catOptionText}>{item}</Text>
                     {category === item && (
-                      <Ionicons name="checkmark-circle" size={18} color={GREEN} style={{ marginLeft: 'auto' }} />
+                      <SFIcon name="checkmark.circle.fill" size={18} color={GREEN} style={{ marginLeft: 'auto' }} />
                     )}
                   </Pressable>
                 ))}
@@ -695,7 +693,7 @@ function FormRow({
       <Text style={s.formRowLabel}>{label}</Text>
       <View style={s.formRowRight}>
         {children}
-        <Ionicons name="chevron-forward" size={14} color={DIM} />
+        <SFIcon name="chevron.right" size={14} color={DIM} />
       </View>
     </Pressable>
   );
@@ -722,11 +720,11 @@ function SheetOption({
     >
       <Text style={s.sheetOptionText}>{label}</Text>
       {selected ? (
-        <Ionicons name="checkmark-circle" size={18} color={GREEN} />
+        <SFIcon name="checkmark.circle.fill" size={18} color={GREEN} />
       ) : trailing ? (
         <Text style={s.sheetTrailing}>{trailing}</Text>
       ) : (
-        <Ionicons name="chevron-forward" size={14} color={DIM} />
+        <SFIcon name="chevron.right" size={14} color={DIM} />
       )}
     </Pressable>
   );

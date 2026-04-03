@@ -95,13 +95,13 @@ export const BASE_CATEGORIES: Subscription['category'][] = [
 ];
 
 export const CATEGORY_ICONS: Record<string, string> = {
-  Streaming: 'tv-outline',
-  Music: 'musical-notes-outline',
-  Productivity: 'briefcase-outline',
-  'Cloud Storage': 'cloud-outline',
-  Gaming: 'game-controller-outline',
-  Fitness: 'fitness-outline',
-  Education: 'school-outline',
-  Utilities: 'construct-outline',
-  Other: 'ellipsis-horizontal-circle-outline',
+  Streaming: 'tv',
+  Music: 'music.note.list',
+  Productivity: 'briefcase',
+  'Cloud Storage': 'cloud',
+  Gaming: 'gamecontroller',
+  Fitness: 'figure.run',
+  Education: 'graduationcap',
+  Utilities: 'wrench',
+  Other: 'ellipsis.circle',
 };

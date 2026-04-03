@@ -14,10 +14,12 @@ export type TabScreenBackgroundVariant = 'default' | 'figma';
 export function TabScreenBackground({
   children,
   edges = ['top', 'left', 'right'],
+  disableSafeAreaView = false,
   variant: _variant = 'figma',
 }: {
   children: React.ReactNode;
   edges?: Edge[];
+  disableSafeAreaView?: boolean;
   variant?: TabScreenBackgroundVariant;
 }) {
   const { width: screenWidth } = useWindowDimensions();
@@ -25,6 +27,20 @@ export function TabScreenBackground({
   const aspect =
     resolved?.width && resolved?.height ? resolved.height / resolved.width : 0.81;
   const bgHeight = Math.round(screenWidth * aspect);
+
+  // #region agent log
+  if (__DEV__) {
+    fetch('http://127.0.0.1:7407/ingest/bd32949a-51b2-4bbb-ad45-8aded2dcc1b5',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'3969cd'},body:JSON.stringify({sessionId:'3969cd',runId:'run10',hypothesisId:'H15',location:'src/components/TabScreenBackground.tsx:32',message:'TabScreenBackground render',data:{edges,disableSafeAreaView,contentSafeBackground:'transparent',rootBackground:colors.bg,bgHeight,screenWidth},timestamp:Date.now()})}).catch(()=>{});
+    console.warn('[DBG3969cd][H10] TabScreenBackground render', {
+      edges,
+      disableSafeAreaView,
+      contentSafeBackground: 'transparent',
+      rootBackground: colors.bg,
+      bgHeight,
+      screenWidth,
+    });
+  }
+  // #endregion
 
   return (
     <View style={styles.root}>
@@ -38,9 +54,13 @@ export function TabScreenBackground({
           recyclingKey="tab-screen-bg"
         />
       </View>
-      <SafeAreaView style={styles.contentSafe} edges={edges}>
-        {children}
-      </SafeAreaView>
+      {disableSafeAreaView ? (
+        <View style={styles.contentSafe}>{children}</View>
+      ) : (
+        <SafeAreaView style={styles.contentSafe} edges={edges}>
+          {children}
+        </SafeAreaView>
+      )}
     </View>
   );
 }
