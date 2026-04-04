@@ -15,6 +15,8 @@ export const spacing = {
   screenX: 16,
   pageTop: 8,
   sectionGap: 20,
+  /** iOS-style section title → grouped card below (Settings, Invest partners, etc.) */
+  sectionTitleToCard: 12,
   cardPadding: 16,
   /** Action sheet inner padding — matches Home `content` horizontal padding */
   sheetPaddingX: 16,

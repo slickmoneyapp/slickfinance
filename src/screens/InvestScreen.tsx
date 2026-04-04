@@ -620,7 +620,7 @@ const styles = StyleSheet.create({
     color: '#616161',
     paddingHorizontal: 20,
     marginTop: 0,
-    marginBottom: 7,
+    marginBottom: spacing.sectionTitleToCard,
   },
   partnersSectionDebug: {},
 

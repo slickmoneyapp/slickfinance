@@ -12,7 +12,10 @@ import {
   useFonts,
   BricolageGrotesque_800ExtraBold,
 } from '@expo-google-fonts/bricolage-grotesque';
-import { NavigationContainer } from '@react-navigation/native';
+import {
+  NavigationContainer,
+  type NavigatorScreenParams,
+} from '@react-navigation/native';
 import { createNativeBottomTabNavigator } from '@bottom-tabs/react-navigation';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import type { NativeStackNavigationOptions } from '@react-navigation/native-stack';
@@ -36,7 +39,10 @@ import {
   ENABLE_BUDGET_TAB,
   ENABLE_INVEST_TAB,
 } from './src/config/featureFlags';
-import { AddSubscriptionScreen } from './src/screens/AddSubscriptionScreen';
+import {
+  AddSubscriptionStackNavigator,
+  type AddSubscriptionStackParamList,
+} from './src/navigation/AddSubscriptionStack';
 import { SubscriptionDetailScreen } from './src/screens/SubscriptionDetailScreen';
 import { EditSubscriptionScreen } from './src/screens/EditSubscriptionScreen';
 import { PaywallScreen } from './src/screens/PaywallScreen';
@@ -127,11 +133,13 @@ export type RootTabsParamList = {
 
 export type RootStackParamList = {
   Tabs: undefined;
-  AddSubscription: undefined;
+  AddSubscription: NavigatorScreenParams<AddSubscriptionStackParamList>;
   SubscriptionDetail: { subscriptionId: string };
   EditSubscription: { subscriptionId: string };
   Paywall: undefined;
 };
+
+export type { AddSubscriptionStackParamList };
 
 // ─── Navigators ───────────────────────────────────────────────────────────────
 
@@ -389,7 +397,7 @@ function AppInner() {
         />
         <Stack.Screen
           name="AddSubscription"
-          component={AddSubscriptionScreen}
+          component={AddSubscriptionStackNavigator}
           options={{
             presentation: Platform.OS === 'ios' ? 'formSheet' : 'modal',
             headerShown: false,

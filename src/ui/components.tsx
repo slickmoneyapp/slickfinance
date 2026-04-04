@@ -231,6 +231,7 @@ const s = StyleSheet.create({
     alignItems: 'center',
     paddingHorizontal: spacing.screenX,
     paddingVertical: 10,
+    backgroundColor: colors.bg,
   },
   side: {
     width: 72,

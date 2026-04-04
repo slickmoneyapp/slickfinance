@@ -1,5 +1,5 @@
 import React from 'react';
-import { Platform, View, type ViewStyle } from 'react-native';
+import { Platform, View, type ColorValue, type ViewStyle } from 'react-native';
 import { SymbolView } from 'expo-symbols';
 
 type SymbolWeight =
@@ -22,7 +22,7 @@ export function SFIcon({
 }: {
   name: string;
   size?: number;
-  color?: string;
+  color?: ColorValue;
   weight?: SymbolWeight;
   style?: ViewStyle;
 }) {
