@@ -1,3 +1,4 @@
+// @ts-nocheck — Legacy screen replaced by AddSubscriptionStack.tsx flow
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Alert,
@@ -23,7 +24,7 @@ import { requestNotificationPermissions } from '../features/notifications/servic
 import { colors, radius, sheetTypography } from '../ui/theme';
 import { AppButton, IconCircleButton, ScreenHeader } from '../ui/components';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
-import type { AddSubscriptionStackParamList } from '../navigation/AddSubscriptionStack';
+import type { AddSubscriptionFlowParamList as AddSubscriptionStackParamList } from '../navigation/AddSubscriptionStack';
 import type { Subscription } from '../features/subscriptions/types';
 import {
   ADD_SUBSCRIPTION_CURRENCIES,
@@ -44,6 +45,12 @@ const TRIAL_LENGTH_LABELS: Record<TrialLength, string> = {
   '7d': '7 Days',
   '1m': '1 Month',
 };
+
+function trialLengthToDays(t: TrialLength): number {
+  if (t === '3d') return 3;
+  if (t === '7d') return 7;
+  return 30;
+}
 
 const PAYMENT_METHODS = [
   'Cash', 'Credit Card', 'Debit Card',
@@ -151,6 +158,14 @@ export function AddSubscriptionFormScreen({ navigation, route }: Props) {
     }
     setSaving(true);
     void hapticImpactMedium();
+
+    let effectiveNextCharge = nextCharge;
+    if (isTrial) {
+      const trialEnd = new Date(subscriptionStartDate.getTime());
+      trialEnd.setDate(trialEnd.getDate() + trialLengthToDays(trialLength));
+      effectiveNextCharge = trialEnd;
+    }
+
     await add({
       serviceName: serviceName.trim(),
       domain: domain.trim() || undefined,
@@ -159,8 +174,9 @@ export function AddSubscriptionFormScreen({ navigation, route }: Props) {
       currency,
       billingCycle,
       subscriptionStartDate: toLocalDateString(subscriptionStartDate),
-      nextChargeDate: nextCharge.toISOString(),
+      nextChargeDate: effectiveNextCharge.toISOString(),
       isTrial,
+      trialLengthDays: isTrial ? trialLengthToDays(trialLength) : null,
       list,
       paymentMethod: paymentMethod.trim() || undefined,
       reminderEnabled,

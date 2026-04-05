@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import type { Subscription } from './types';
-import { buildBillingHistoryFromSubscription } from './buildBillingHistoryFromSubscription';
+import { buildBillingHistoryFromSubscription, parseLocalDate } from './buildBillingHistoryFromSubscription';
 import { supabase } from '../../lib/supabase';
 import type { RealtimePostgresChangesPayload } from '@supabase/supabase-js';
 
@@ -12,6 +12,28 @@ export type SubscriptionFilter = 'all' | 'active' | 'trial' | 'paused' | 'cancel
 /* ------------------------------------------------------------------ */
 
 type DbRow = Record<string, unknown>;
+
+/** Normalize ISO or YYYY-MM-DD for Postgres `date` columns. */
+function toDbDateString(value: string): string {
+  return value.split('T')[0];
+}
+
+function deriveTrialLengthDays(row: DbRow): number | null {
+  if (!(row.is_trial as boolean)) return null;
+  const stored = row.trial_length_days;
+  if (stored != null && !Number.isNaN(Number(stored))) {
+    const n = Number(stored);
+    return n > 0 ? n : null;
+  }
+  const start = row.subscription_start_date as string | undefined;
+  const next = row.next_charge_date as string | undefined;
+  if (!start || !next) return null;
+  const s = parseLocalDate(start);
+  const n = parseLocalDate(next);
+  if (Number.isNaN(s.getTime()) || Number.isNaN(n.getTime())) return null;
+  const days = Math.round((n.getTime() - s.getTime()) / (1000 * 60 * 60 * 24));
+  return days > 0 ? days : null;
+}
 
 function fromDbRow(row: DbRow): Subscription {
   return {
@@ -31,6 +53,7 @@ function fromDbRow(row: DbRow): Subscription {
     list: (row.list as string) ?? 'Personal',
     status: (row.status as Subscription['status']) ?? 'active',
     isTrial: (row.is_trial as boolean) ?? false,
+    trialLengthDays: deriveTrialLengthDays(row),
     reminderEnabled: (row.reminder_enabled as boolean) ?? true,
     reminderDaysBefore: Number(row.reminder_days_before ?? 1),
     reminderTime: (row.reminder_time as string) ?? '09:00',
@@ -45,8 +68,9 @@ function withHistory(sub: Subscription): Subscription {
 }
 
 function toDbInsert(
-  sub: Omit<Subscription, 'id' | 'createdAt' | 'updatedAt' | 'billingHistory' | 'subscriptionStartDate'> & {
+  sub: Omit<Subscription, 'id' | 'createdAt' | 'updatedAt' | 'billingHistory' | 'subscriptionStartDate' | 'trialLengthDays'> & {
     subscriptionStartDate?: string;
+    trialLengthDays?: number | null;
   }
 ) {
   return {
@@ -57,14 +81,17 @@ function toDbInsert(
     currency: sub.currency,
     billing_cycle: sub.billingCycle,
     custom_cycle_days: sub.customCycleDays ?? null,
-    subscription_start_date: sub.subscriptionStartDate ?? new Date().toISOString().split('T')[0],
-    next_charge_date: sub.nextChargeDate.split('T')[0],
+    subscription_start_date: toDbDateString(
+      sub.subscriptionStartDate ?? new Date().toISOString().split('T')[0]
+    ),
+    next_charge_date: toDbDateString(sub.nextChargeDate),
     description: sub.description ?? null,
     url: sub.url ?? null,
     payment_method: sub.paymentMethod ?? null,
     list: sub.list,
     status: sub.status,
     is_trial: sub.isTrial,
+    trial_length_days: sub.isTrial ? (sub.trialLengthDays ?? null) : null,
     reminder_enabled: sub.reminderEnabled,
     reminder_days_before: sub.reminderDaysBefore,
     reminder_time: sub.reminderTime,
@@ -80,14 +107,21 @@ function toDbUpdate(patch: Partial<Omit<Subscription, 'id' | 'createdAt'>>) {
   if (patch.currency !== undefined) row.currency = patch.currency;
   if (patch.billingCycle !== undefined) row.billing_cycle = patch.billingCycle;
   if (patch.customCycleDays !== undefined) row.custom_cycle_days = patch.customCycleDays ?? null;
-  if (patch.subscriptionStartDate !== undefined) row.subscription_start_date = patch.subscriptionStartDate;
-  if (patch.nextChargeDate !== undefined) row.next_charge_date = patch.nextChargeDate;
+  if (patch.subscriptionStartDate !== undefined) {
+    row.subscription_start_date = toDbDateString(patch.subscriptionStartDate);
+  }
+  if (patch.nextChargeDate !== undefined) row.next_charge_date = toDbDateString(patch.nextChargeDate);
   if (patch.description !== undefined) row.description = patch.description ?? null;
   if (patch.url !== undefined) row.url = patch.url ?? null;
   if (patch.paymentMethod !== undefined) row.payment_method = patch.paymentMethod ?? null;
   if (patch.list !== undefined) row.list = patch.list;
   if (patch.status !== undefined) row.status = patch.status;
   if (patch.isTrial !== undefined) row.is_trial = patch.isTrial;
+  if (patch.trialLengthDays !== undefined) {
+    row.trial_length_days =
+      patch.trialLengthDays != null && patch.trialLengthDays > 0 ? patch.trialLengthDays : null;
+  }
+  if (patch.isTrial === false) row.trial_length_days = null;
   if (patch.reminderEnabled !== undefined) row.reminder_enabled = patch.reminderEnabled;
   if (patch.reminderDaysBefore !== undefined) row.reminder_days_before = patch.reminderDaysBefore;
   if (patch.reminderTime !== undefined) row.reminder_time = patch.reminderTime;
@@ -122,8 +156,9 @@ type SubscriptionsState = {
   initialize: () => () => void;
 
   add: (
-    partial: Omit<Subscription, 'id' | 'createdAt' | 'updatedAt' | 'billingHistory' | 'subscriptionStartDate'> & {
+    partial: Omit<Subscription, 'id' | 'createdAt' | 'updatedAt' | 'billingHistory' | 'subscriptionStartDate' | 'trialLengthDays'> & {
       subscriptionStartDate?: string;
+      trialLengthDays?: number | null;
     }
   ) => Promise<Subscription | null>;
 
@@ -221,7 +256,11 @@ export const useSubscriptionsStore = create<SubscriptionsState>()((set, get) => 
       .select()
       .single();
 
-    if (error || !data) return null;
+    if (error) {
+      if (__DEV__) console.error('[SubscriptionsStore] add failed:', error.message);
+      return null;
+    }
+    if (!data) return null;
 
     const sub = withHistory(fromDbRow(data as DbRow));
     if (!get().items.some(s => s.id === sub.id)) {

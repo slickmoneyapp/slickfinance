@@ -171,7 +171,9 @@ export function SubscriptionDetailScreen({ navigation, route }: Props) {
               {formatMoney(subscription.price, subscription.currency)} / {cycleSlash(subscription.billingCycle)}
             </Text>
             <Text style={s.heroSub}>
-              {subscription.isTrial ? 'Trial' : CYCLE_LABELS[subscription.billingCycle] ?? subscription.billingCycle}
+              {subscription.isTrial
+                ? `Trial${subscription.trialLengthDays ? ` · ${subscription.trialLengthDays} days` : ''}`
+                : CYCLE_LABELS[subscription.billingCycle] ?? subscription.billingCycle}
               {subscription.customCycleDays && subscription.billingCycle === 'custom' ? ` · ${subscription.customCycleDays} days` : ''}
             </Text>
             <View style={s.heroBadgeRow}>
@@ -196,6 +198,12 @@ export function SubscriptionDetailScreen({ navigation, route }: Props) {
             />
             <View style={s.sep} />
             <Row label="Status" value={<StatusBadge status={subscription.status} />} isComponent />
+            {subscription.isTrial && subscription.trialLengthDays != null && (
+              <>
+                <View style={s.sep} />
+                <Row label="Trial length" value={`${subscription.trialLengthDays} days`} />
+              </>
+            )}
             <View style={s.sep} />
             <Row label="Category" value={subscription.category} />
             <View style={s.sep} />

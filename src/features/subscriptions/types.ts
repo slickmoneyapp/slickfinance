@@ -42,6 +42,11 @@ export type Subscription = {
   list: string;
   status: SubscriptionStatus;
   isTrial: boolean;
+  /**
+   * Trial duration in days when `isTrial` is true.
+   * Prefer `trial_length_days` from DB when set; otherwise derived from dates.
+   */
+  trialLengthDays: number | null;
   reminderEnabled: boolean;
   reminderDaysBefore: number;
   reminderTime: string; // "09:00"

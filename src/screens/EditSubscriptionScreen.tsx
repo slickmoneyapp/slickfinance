@@ -31,12 +31,13 @@ import { CATEGORY_ICONS } from '../features/subscriptions/addSubscriptionCatalog
 type Props = NativeStackScreenProps<RootStackParamList, 'EditSubscription'>;
 type SheetType = null | 'billingCycle' | 'list' | 'category' | 'payment' | 'currency' | 'notify' | 'trialLength' | 'paymentMethod';
 
-type TrialLength = '3d' | '7d' | '1m';
-const TRIAL_LENGTH_OPTIONS: TrialLength[] = ['3d', '7d', '1m'];
-const TRIAL_LENGTH_LABELS: Record<TrialLength, string> = {
-  '3d': '3 Days',
-  '7d': '7 Days',
-  '1m': '1 Month',
+const TRIAL_LENGTH_OPTIONS = [3, 7, 14, 30] as const;
+type TrialLengthDays = (typeof TRIAL_LENGTH_OPTIONS)[number];
+const TRIAL_LENGTH_LABELS: Record<number, string> = {
+  3: '3 Days',
+  7: '7 Days',
+  14: '14 Days',
+  30: '30 Days',
 };
 
 const PAYMENT_METHODS_TAGS = [
@@ -131,7 +132,15 @@ export function EditSubscriptionScreen({ navigation, route }: Props) {
   );
 
   const [isTrial, setIsTrial] = useState(sub?.isTrial ?? false);
-  const [trialLength, setTrialLength] = useState<TrialLength>('7d');
+  const [trialLengthDays, setTrialLengthDays] = useState<TrialLengthDays>(
+    () => {
+      const saved = sub?.trialLengthDays;
+      if (saved != null && (TRIAL_LENGTH_OPTIONS as readonly number[]).includes(saved)) {
+        return saved as TrialLengthDays;
+      }
+      return 7;
+    }
+  );
   const [list, setList] = useState(sub?.list ?? 'Personal');
 
   const [paymentMethod, setPaymentMethod] = useState(sub?.paymentMethod ?? 'None');
@@ -178,6 +187,14 @@ export function EditSubscriptionScreen({ navigation, route }: Props) {
 
     setSaving(true);
     void hapticImpactMedium();
+
+    let effectiveNextCharge = nextCharge;
+    if (isTrial) {
+      const trialEnd = new Date(subscriptionStartDate.getTime());
+      trialEnd.setDate(trialEnd.getDate() + trialLengthDays);
+      effectiveNextCharge = trialEnd;
+    }
+
     await update(sub.id, {
       serviceName: serviceName.trim(),
       category: (category as Subscription['category']) ?? 'Other',
@@ -186,8 +203,9 @@ export function EditSubscriptionScreen({ navigation, route }: Props) {
       billingCycle,
       customCycleDays: billingCycle === 'custom' ? Math.max(1, customCycleDays) : undefined,
       subscriptionStartDate: toLocalDateString(subscriptionStartDate),
-      nextChargeDate: nextCharge.toISOString(),
+      nextChargeDate: effectiveNextCharge.toISOString(),
       isTrial,
+      trialLengthDays: isTrial ? trialLengthDays : null,
       status: isTrial ? 'trial' : sub.status === 'cancelled' ? 'cancelled' : 'active',
       list,
       paymentMethod: paymentMethod === 'None' ? undefined : paymentMethod,
@@ -342,7 +360,7 @@ export function EditSubscriptionScreen({ navigation, route }: Props) {
               <>
                 <Divider />
                 <FormRow label="Trial Length" onPress={() => setSheet('trialLength')}>
-                  <Text style={s.valueText}>{TRIAL_LENGTH_LABELS[trialLength]}</Text>
+                  <Text style={s.valueText}>{TRIAL_LENGTH_LABELS[trialLengthDays] ?? `${trialLengthDays} Days`}</Text>
                 </FormRow>
               </>
             )}
@@ -574,9 +592,9 @@ export function EditSubscriptionScreen({ navigation, route }: Props) {
                   <SheetOption
                     key={opt}
                     label={TRIAL_LENGTH_LABELS[opt]}
-                    selected={trialLength === opt}
+                    selected={trialLengthDays === opt}
                     onPress={() => {
-                      setTrialLength(opt);
+                      setTrialLengthDays(opt);
                       setSheet(null);
                     }}
                   />
