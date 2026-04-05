@@ -4,6 +4,7 @@ import {
   Easing,
   Modal,
   PanResponder,
+  Platform,
   Pressable,
   StyleSheet,
   View,
@@ -32,12 +33,15 @@ type Props = {
 
 export function AppActionSheet({ visible, onClose, children, maxHeight, safeAreaInsets }: Props) {
   const { height: windowHeight } = useWindowDimensions();
-  const topInset = safeAreaInsets.top;
+  // In iOS formSheet flows, parent top inset can include modal offsets and collapse sheet height.
+  // We only need bottom protection for the grabber/home indicator area.
+  const topInset = Platform.OS === 'ios' ? 0 : safeAreaInsets.top;
   const bottomInset = safeAreaInsets.bottom;
 
   const safeInnerHeight = Math.max(0, windowHeight - topInset - bottomInset);
+  const availableHeight = safeInnerHeight > 0 ? safeInnerHeight : windowHeight;
   const requestedHeight = maxHeight ?? Math.min(Math.round(windowHeight * 0.54), 500);
-  const sheetHeight = Math.min(requestedHeight, safeInnerHeight);
+  const sheetHeight = Math.min(requestedHeight, availableHeight);
 
   const translateY = useRef(new Animated.Value(sheetHeight)).current;
   const backdropOpacity = useRef(new Animated.Value(0)).current;
@@ -86,6 +90,20 @@ export function AppActionSheet({ visible, onClose, children, maxHeight, safeArea
     translateY.setValue(sheetHeight);
     backdropOpacity.setValue(0);
   }, [visible, backdropOpacity, translateY, sheetHeight]);
+
+  useEffect(() => {
+    if (__DEV__ && visible) {
+      console.log('[AppActionSheet] layout', {
+        windowHeight,
+        topInset,
+        bottomInset,
+        safeInnerHeight,
+        availableHeight,
+        requestedHeight,
+        sheetHeight,
+      });
+    }
+  }, [availableHeight, bottomInset, requestedHeight, safeInnerHeight, sheetHeight, topInset, visible, windowHeight]);
 
   const panResponder = useMemo(
     () =>

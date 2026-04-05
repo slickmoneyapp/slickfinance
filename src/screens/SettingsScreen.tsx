@@ -21,7 +21,7 @@ import DateTimePicker from '@react-native-community/datetimepicker';
 import * as Notifications from 'expo-notifications';
 import * as Haptics from 'expo-haptics';
 import { hapticSelection } from '../ui/haptics';
-import { colors, figma } from '../ui/theme';
+import { colors, figma, spacing } from '../ui/theme';
 import { useAuthStore } from '../features/auth/store';
 import { usePremiumStore } from '../features/premium/store';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -392,7 +392,7 @@ const s = StyleSheet.create({
     color: IOS_SECONDARY,
     paddingHorizontal: 20,
     marginTop: 24,
-    marginBottom: 7,
+    marginBottom: spacing.sectionTitleToCard,
   },
 
   // Profile + Premium Banner — negative overlap group (Figma gap: -21px)

@@ -128,6 +128,20 @@ export function AddSubscriptionFormScreen({ navigation, route }: Props) {
     return categories.filter((c) => c.toLowerCase().includes(q));
   }, [categories, categorySearch]);
 
+  useEffect(() => {
+    if (!__DEV__ || sheet === null) return;
+    console.log('[AddSubscriptionForm] open sheet', {
+      sheet,
+      currencyOptions: ADD_SUBSCRIPTION_CURRENCIES.length,
+      billingCycleOptions: BILLING_CYCLE_OPTIONS.length,
+      listOptions: 2,
+      categoryOptions: filteredCategories.length,
+      paymentMethodOptions: PAYMENT_METHODS.length,
+      trialLengthOptions: TRIAL_LENGTH_OPTIONS.length,
+      notifyOptions: 5,
+    });
+  }, [filteredCategories.length, sheet]);
+
   async function handleSave() {
     if (saving) return;
     const numPrice = Number(price.replace(',', '.'));

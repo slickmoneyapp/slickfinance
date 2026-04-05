@@ -1,65 +1,71 @@
 import type { CurrencyCode, Subscription } from './types';
 
-export type ServiceTemplate = { name: string; domain: string; category: Subscription['category'] };
+export type ServiceTemplate = {
+  name: string;
+  domain: string;
+  category: Subscription['category'];
+  /** Cheapest US monthly plan (display-only in picker). */
+  startingPrice: number;
+};
 
 export const POPULAR_SERVICES_BY_SECTION: { section: string; items: ServiceTemplate[] }[] = [
   {
     section: 'Streaming',
     items: [
-      { name: 'Netflix', domain: 'netflix.com', category: 'Streaming' },
-      { name: 'YouTube Premium', domain: 'youtube.com', category: 'Streaming' },
-      { name: 'Amazon Prime', domain: 'primevideo.com', category: 'Streaming' },
-      { name: 'Disney+', domain: 'disneyplus.com', category: 'Streaming' },
-      { name: 'Hulu', domain: 'hulu.com', category: 'Streaming' },
-      { name: 'HBO Max', domain: 'hbomax.com', category: 'Streaming' },
-      { name: 'Apple TV+', domain: 'apple.com', category: 'Streaming' },
+      { name: 'Netflix', domain: 'netflix.com', category: 'Streaming', startingPrice: 7.99 },
+      { name: 'YouTube Premium', domain: 'youtube.com', category: 'Streaming', startingPrice: 13.99 },
+      { name: 'Amazon Prime', domain: 'primevideo.com', category: 'Streaming', startingPrice: 8.99 },
+      { name: 'Disney+', domain: 'disneyplus.com', category: 'Streaming', startingPrice: 9.99 },
+      { name: 'Hulu', domain: 'hulu.com', category: 'Streaming', startingPrice: 7.99 },
+      { name: 'HBO Max', domain: 'hbomax.com', category: 'Streaming', startingPrice: 9.99 },
+      { name: 'Apple TV+', domain: 'apple.com', category: 'Streaming', startingPrice: 9.99 },
     ],
   },
   {
     section: 'Music',
     items: [
-      { name: 'Spotify', domain: 'spotify.com', category: 'Music' },
-      { name: 'Apple Music', domain: 'apple.com', category: 'Music' },
-      { name: 'Tidal', domain: 'tidal.com', category: 'Music' },
-      { name: 'Deezer', domain: 'deezer.com', category: 'Music' },
+      { name: 'Spotify', domain: 'spotify.com', category: 'Music', startingPrice: 12.99 },
+      { name: 'Apple Music', domain: 'apple.com', category: 'Music', startingPrice: 10.99 },
+      { name: 'Tidal', domain: 'tidal.com', category: 'Music', startingPrice: 10.99 },
+      { name: 'Deezer', domain: 'deezer.com', category: 'Music', startingPrice: 10.99 },
     ],
   },
   {
     section: 'Productivity',
     items: [
-      { name: 'ChatGPT Plus', domain: 'openai.com', category: 'Productivity' },
-      { name: 'Notion', domain: 'notion.so', category: 'Productivity' },
-      { name: 'Adobe Creative Cloud', domain: 'adobe.com', category: 'Productivity' },
-      { name: 'Microsoft 365', domain: 'microsoft.com', category: 'Productivity' },
-      { name: 'Slack', domain: 'slack.com', category: 'Productivity' },
-      { name: 'Figma', domain: 'figma.com', category: 'Productivity' },
-      { name: 'Dropbox', domain: 'dropbox.com', category: 'Productivity' },
+      { name: 'ChatGPT Plus', domain: 'openai.com', category: 'Productivity', startingPrice: 20 },
+      { name: 'Notion', domain: 'notion.so', category: 'Productivity', startingPrice: 10 },
+      { name: 'Adobe Creative Cloud', domain: 'adobe.com', category: 'Productivity', startingPrice: 22.99 },
+      { name: 'Microsoft 365', domain: 'microsoft.com', category: 'Productivity', startingPrice: 9.99 },
+      { name: 'Slack', domain: 'slack.com', category: 'Productivity', startingPrice: 8.75 },
+      { name: 'Figma', domain: 'figma.com', category: 'Productivity', startingPrice: 15 },
+      { name: 'Dropbox', domain: 'dropbox.com', category: 'Productivity', startingPrice: 11.99 },
     ],
   },
   {
     section: 'Cloud Storage',
     items: [
-      { name: 'iCloud+', domain: 'apple.com', category: 'Cloud Storage' },
-      { name: 'Google One', domain: 'google.com', category: 'Cloud Storage' },
-      { name: 'OneDrive', domain: 'microsoft.com', category: 'Cloud Storage' },
+      { name: 'iCloud+', domain: 'apple.com', category: 'Cloud Storage', startingPrice: 0.99 },
+      { name: 'Google One', domain: 'google.com', category: 'Cloud Storage', startingPrice: 1.99 },
+      { name: 'OneDrive', domain: 'microsoft.com', category: 'Cloud Storage', startingPrice: 1.99 },
     ],
   },
   {
     section: 'Gaming',
     items: [
-      { name: 'Xbox Game Pass', domain: 'xbox.com', category: 'Gaming' },
-      { name: 'PlayStation Plus', domain: 'playstation.com', category: 'Gaming' },
-      { name: 'Apple Arcade', domain: 'apple.com', category: 'Gaming' },
-      { name: 'Nintendo Switch Online', domain: 'nintendo.com', category: 'Gaming' },
+      { name: 'Xbox Game Pass', domain: 'xbox.com', category: 'Gaming', startingPrice: 10.99 },
+      { name: 'PlayStation Plus', domain: 'playstation.com', category: 'Gaming', startingPrice: 9.99 },
+      { name: 'Apple Arcade', domain: 'apple.com', category: 'Gaming', startingPrice: 6.99 },
+      { name: 'Nintendo Switch Online', domain: 'nintendo.com', category: 'Gaming', startingPrice: 3.99 },
     ],
   },
   {
     section: 'Fitness',
     items: [
-      { name: 'Peloton', domain: 'onepeloton.com', category: 'Fitness' },
-      { name: 'Strava', domain: 'strava.com', category: 'Fitness' },
-      { name: 'Calm', domain: 'calm.com', category: 'Fitness' },
-      { name: 'Headspace', domain: 'headspace.com', category: 'Fitness' },
+      { name: 'Peloton', domain: 'onepeloton.com', category: 'Fitness', startingPrice: 12.99 },
+      { name: 'Strava', domain: 'strava.com', category: 'Fitness', startingPrice: 11.99 },
+      { name: 'Calm', domain: 'calm.com', category: 'Fitness', startingPrice: 14.99 },
+      { name: 'Headspace', domain: 'headspace.com', category: 'Fitness', startingPrice: 12.99 },
     ],
   },
 ];
