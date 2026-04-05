@@ -40,15 +40,18 @@ export type TabScreenBackgroundVariant = 'default' | 'figma';
 
 /**
  * Backward-compatible wrapper for non-tab screens (modals, detail views) that don't need
- * the native large-title collapse. Renders the sky image behind children in a plain View.
+ * the native large-title collapse. Renders the sky image behind children in a plain View
+ * unless `showSky` is false (solid `colors.bg` only).
  */
 export function TabScreenBackground({
   children,
+  showSky = true,
 }: {
   children: React.ReactNode;
   edges?: readonly string[];
   disableSafeAreaView?: boolean;
   variant?: TabScreenBackgroundVariant;
+  showSky?: boolean;
 }) {
   const { width: screenWidth } = useWindowDimensions();
   const resolved = RNImage.resolveAssetSource(TAB_SCREEN_BACKGROUND);
@@ -58,17 +61,20 @@ export function TabScreenBackground({
 
   return (
     <View style={wrapperStyles.root}>
-      <View pointerEvents="none" style={wrapperStyles.topIllustration}>
-        <Image
-          source={TAB_SCREEN_BACKGROUND}
-          style={{ width: screenWidth, height: bgHeight }}
-          contentFit="cover"
-          cachePolicy="memory-disk"
-          transition={0}
-          recyclingKey="tab-screen-bg"
-        />
-      </View>
-      {children}
+      {showSky ? (
+        <View pointerEvents="none" style={wrapperStyles.topIllustration}>
+          <Image
+            source={TAB_SCREEN_BACKGROUND}
+            style={{ width: screenWidth, height: bgHeight }}
+            contentFit="cover"
+            cachePolicy="memory-disk"
+            transition={0}
+            recyclingKey="tab-screen-bg"
+          />
+        </View>
+      ) : null}
+      {/* Flex shell so children always fill the screen whether or not the sky layer exists. */}
+      <View style={wrapperStyles.contentShell}>{children}</View>
     </View>
   );
 }
@@ -85,4 +91,9 @@ const styles = StyleSheet.create({
 const wrapperStyles = StyleSheet.create({
   root: { flex: 1, backgroundColor: colors.bg },
   topIllustration: { position: 'absolute', top: 0, left: 0 },
+  contentShell: {
+    flex: 1,
+    zIndex: 1,
+    backgroundColor: 'transparent',
+  },
 });

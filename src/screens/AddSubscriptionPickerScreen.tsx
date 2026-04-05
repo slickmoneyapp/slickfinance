@@ -485,9 +485,9 @@ const s = StyleSheet.create({
   },
   catDomain: {
     marginTop: 2,
-    fontSize: 14,
+    fontSize: 16,
     fontWeight: '500',
-    lineHeight: 19,
+    lineHeight: 21,
   },
   catSep: {
     height: StyleSheet.hairlineWidth,

@@ -644,9 +644,9 @@ const s = StyleSheet.create({
     gap: 6,
   },
   heroChipPillText: {
-    fontSize: 14,
+    fontSize: 16,
     fontWeight: '600',
-    lineHeight: 17,
+    lineHeight: 20,
     color: '#616161',
     ...androidTextFix,
   },
@@ -689,7 +689,7 @@ const s = StyleSheet.create({
 
   /* ── Typography (exact match SettingsScreen) ───────── */
   primaryText: { fontSize: 16, fontWeight: '600', color: IOS_PRIMARY },
-  secondaryText: { fontSize: 14, fontWeight: '500', color: IOS_SECONDARY },
+  secondaryText: { fontSize: 16, fontWeight: '500', color: IOS_SECONDARY },
 
   /* ── Separator (exact match SettingsScreen) ────────── */
   sep: {
@@ -758,7 +758,7 @@ const s = StyleSheet.create({
     alignSelf: 'stretch',
   },
   heroSub: {
-    fontSize: 14,
+    fontSize: 16,
     fontWeight: '500',
     color: IOS_SECONDARY,
     textAlign: 'left',
@@ -815,8 +815,8 @@ const s = StyleSheet.create({
   },
   pickerSubtitle: {
     marginTop: 2,
-    fontSize: 14,
-    lineHeight: 19,
+    fontSize: 16,
+    lineHeight: 21,
     fontWeight: '500',
     color: IOS_SECONDARY,
   },

@@ -710,7 +710,7 @@ const s = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 14,
   },
-  formRowLabel: { flex: 1, fontSize: 15, fontWeight: '500', color: INK },
+  formRowLabel: { flex: 1, fontSize: 16, fontWeight: '500', color: INK },
   formRowRight: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   heroCard: { marginTop: 16, paddingHorizontal: 18, paddingVertical: 16, gap: 14 },
   heroTop: { flexDirection: 'row', alignItems: 'center', gap: 14 },
@@ -741,8 +741,8 @@ const s = StyleSheet.create({
     backgroundColor: BG,
     borderRadius: 10,
   },
-  datePillText: { fontSize: 14, fontWeight: '600', color: INK },
-  valueText: { fontSize: 14, fontWeight: '500', color: DIM },
+  datePillText: { fontSize: 16, fontWeight: '600', color: INK },
+  valueText: { fontSize: 16, fontWeight: '500', color: DIM },
   pickerTap: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   fieldLabel: {
     fontSize: 11,
@@ -798,7 +798,7 @@ const s = StyleSheet.create({
     backgroundColor: CARD,
     paddingHorizontal: 12,
     paddingVertical: 10,
-    fontSize: 14,
+    fontSize: 16,
     color: INK,
   },
   catOption: {
@@ -844,7 +844,7 @@ const s = StyleSheet.create({
     borderColor: GREEN,
   },
   tagText: {
-    fontSize: 14,
+    fontSize: 16,
     fontWeight: '600',
     color: INK,
   },

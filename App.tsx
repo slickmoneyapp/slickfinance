@@ -49,6 +49,7 @@ import { navigateRoot } from './src/navigation/navigateRoot';
 import { hapticImpact, hapticSelection } from './src/ui/haptics';
 import { stackHeaderLargeTitleStyle } from './src/constants/fonts';
 import { TAB_SCREEN_BACKGROUND } from './src/assets/tabBackground';
+import { colors } from './src/ui/theme';
 
 SplashScreen.preventAutoHideAsync();
 
@@ -420,6 +421,23 @@ function AppInner() {
             headerTransparent: true,
             headerStyle: { backgroundColor: 'transparent' },
             headerShadowVisible: false,
+            /**
+             * Prevent the form sheet from hijacking vertical list scroll gestures near edges.
+             * Keep this only on SubscriptionDetail to preserve AddSubscription behavior.
+             */
+            ...(Platform.OS === 'ios' ? { sheetExpandsWhenScrolledToEdge: false } : {}),
+            /**
+             * iOS formSheet + transparent header: without flex + bg the native content view can
+             * collapse to a blank white sheet (sky image previously masked this by forcing layout).
+             */
+            contentStyle: { flex: 1, backgroundColor: colors.bg },
+            headerTitleStyle: { fontWeight: '600', color: colors.text },
+            headerTintColor: colors.text,
+            ...(iosMajor >= 26
+              ? {}
+              : iosMajor > 0
+                ? { headerBlurEffect: 'systemChromeMaterial' as const }
+                : {}),
           }}
         />
         {/* Deprecated: editing is inline on SubscriptionDetail; screen kept for compatibility. */}

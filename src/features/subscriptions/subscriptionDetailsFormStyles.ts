@@ -62,9 +62,9 @@ export const subscriptionFormStyles = StyleSheet.create({
     gap: 6,
   },
   heroChipPillText: {
-    fontSize: 14,
+    fontSize: 16,
     fontWeight: '600',
-    lineHeight: 17,
+    lineHeight: 20,
     color: '#616161',
     ...androidTextFix,
   },
@@ -93,7 +93,7 @@ export const subscriptionFormStyles = StyleSheet.create({
   cellLabelCol: { flex: 1, justifyContent: 'center', gap: 3 },
   cellRightCol: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   primaryText: { fontSize: 16, fontWeight: '600', color: IOS_PRIMARY },
-  secondaryText: { fontSize: 14, fontWeight: '500', color: IOS_SECONDARY },
+  secondaryText: { fontSize: 16, fontWeight: '500', color: IOS_SECONDARY },
   sep: {
     height: StyleSheet.hairlineWidth,
     backgroundColor: IOS_SEPARATOR,
@@ -102,7 +102,7 @@ export const subscriptionFormStyles = StyleSheet.create({
   sectionHeader: {
     fontSize: 13,
     fontWeight: '600',
-    color: IOS_SECONDARY,
+    color: colors.textMuted,
     paddingHorizontal: 20,
     marginTop: 24,
     marginBottom: spacing.sectionTitleToCard,
@@ -131,13 +131,14 @@ export const subscriptionFormStyles = StyleSheet.create({
   heroFallbackText: {
     fontSize: 24,
     fontWeight: '800',
-    color: IOS_PRIMARY,
+    /** On `colors.bg`; IOS_PRIMARY → white in dark mode = invisible on gray. */
+    color: colors.text,
   },
   heroNameInput: {
     fontFamily: 'BricolageGrotesque_800ExtraBold',
     fontSize: 34,
     lineHeight: 42,
-    color: '#000',
+    color: colors.text,
     textAlign: 'left',
     width: '100%',
     alignSelf: 'stretch',
@@ -149,14 +150,14 @@ export const subscriptionFormStyles = StyleSheet.create({
   heroPrice: {
     fontSize: 20,
     fontWeight: '600',
-    color: IOS_PRIMARY,
+    color: colors.text,
     textAlign: 'left',
     alignSelf: 'stretch',
   },
   heroSub: {
-    fontSize: 14,
+    fontSize: 16,
     fontWeight: '500',
-    color: IOS_SECONDARY,
+    color: colors.textMuted,
     textAlign: 'left',
     alignSelf: 'stretch',
   },

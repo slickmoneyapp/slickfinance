@@ -785,7 +785,7 @@ const s = StyleSheet.create({
     gap: 4,
     paddingHorizontal: 10,
   },
-  currencyPillText: { fontSize: 14, fontWeight: '700', color: INK },
+  currencyPillText: { fontSize: 16, fontWeight: '700', color: INK },
   pricePress: { flex: 1, minHeight: 42, justifyContent: 'center' },
   priceInput: { fontSize: 30, fontWeight: '800', color: INK, letterSpacing: -0.3 },
 
@@ -795,9 +795,9 @@ const s = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 14,
   },
-  formRowLabel: { flex: 1, fontSize: 15, fontWeight: '500', color: INK },
+  formRowLabel: { flex: 1, fontSize: 16, fontWeight: '500', color: INK },
   formRowRight: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  valueText: { fontSize: 14, fontWeight: '500', color: DIM },
+  valueText: { fontSize: 16, fontWeight: '500', color: DIM },
 
   fieldLabel: {
     fontSize: 11,
@@ -865,7 +865,7 @@ const s = StyleSheet.create({
     borderColor: GREEN,
   },
   tagText: {
-    fontSize: 14,
+    fontSize: 16,
     fontWeight: '600' as const,
     color: INK,
   },
@@ -906,7 +906,7 @@ const s = StyleSheet.create({
     backgroundColor: CARD,
     paddingHorizontal: 12,
     paddingVertical: 10,
-    fontSize: 14,
+    fontSize: 16,
     color: INK,
   },
   smallActionBtn: {

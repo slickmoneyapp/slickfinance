@@ -376,7 +376,7 @@ const s = StyleSheet.create({
 
   // Typography (iOS dynamic)
   primaryText: { fontSize: 16, fontWeight: '600', color: IOS_PRIMARY },
-  secondaryText: { fontSize: 14, fontWeight: '500', color: IOS_SECONDARY },
+  secondaryText: { fontSize: 16, fontWeight: '500', color: IOS_SECONDARY },
 
   // Separator — HIG: starts at leading text edge, extends to trailing card edge
   sep: {

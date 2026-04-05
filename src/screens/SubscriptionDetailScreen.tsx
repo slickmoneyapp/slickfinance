@@ -11,8 +11,6 @@ import {
   View,
 } from 'react-native';
 import * as Haptics from 'expo-haptics';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { TabScreenBackground } from '../components/TabScreenBackground';
 import { useSubscriptionsStore } from '../features/subscriptions/store';
 import { formatMoney } from '../features/subscriptions/calc';
 import { toLocalDateString } from '../features/subscriptions/buildBillingHistoryFromSubscription';
@@ -39,7 +37,6 @@ type Props = NativeStackScreenProps<RootStackParamList, 'SubscriptionDetail'>;
 
 const INK = colors.text;
 const DIM = colors.textMuted;
-const SEP = colors.borderSoft;
 const GREEN = colors.success;
 const SAVE_HEADER_PURPLE = '#CB30E0';
 
@@ -115,7 +112,6 @@ type DraftState = {
 };
 
 export function SubscriptionDetailScreen({ navigation, route }: Props) {
-  const insets = useSafeAreaInsets();
   const { subscriptionId } = route.params;
   const sub = useSubscriptionsStore((s) => s.items.find((i) => i.id === subscriptionId));
   const update = useSubscriptionsStore((s) => s.update);
@@ -296,14 +292,14 @@ export function SubscriptionDetailScreen({ navigation, route }: Props) {
 
   if (!sub) {
     return (
-      <TabScreenBackground variant="figma" edges={['left', 'right']}>
+      <View style={fallbackStyles.screenRoot}>
         <View style={fallbackStyles.wrap}>
           <Text style={fallbackStyles.text}>Subscription not found.</Text>
           <Pressable onPress={() => navigation.goBack()} style={fallbackStyles.back}>
             <Text style={fallbackStyles.backLabel}>Go back</Text>
           </Pressable>
         </View>
-      </TabScreenBackground>
+      </View>
     );
   }
 
@@ -351,28 +347,24 @@ export function SubscriptionDetailScreen({ navigation, route }: Props) {
 
   if (mode === 'edit' && !editDraft) {
     return (
-      <TabScreenBackground variant="figma" edges={['left', 'right']}>
+      <View style={fallbackStyles.screenRoot}>
         <View style={fallbackStyles.wrap}>
           <Text style={fallbackStyles.text}>Loading…</Text>
         </View>
-      </TabScreenBackground>
+      </View>
     );
   }
 
+  // Root must be ScrollView only: iOS formSheet (RNSScreenContentWrapper) finds the scroll view as a direct subview; same as AddSubscription DetailsBody.
   return (
-    <TabScreenBackground variant="figma" edges={['left', 'right']}>
-      <View style={styles.root}>
-        <ScrollView
-          style={styles.scroll}
-          contentContainerStyle={[
-            subscriptionFormStyles.detailsScrollContent,
-            { paddingBottom: Math.max(insets.bottom, 12) + 24 },
-          ]}
-          showsVerticalScrollIndicator={false}
-          keyboardShouldPersistTaps="handled"
-          keyboardDismissMode="interactive"
-          contentInsetAdjustmentBehavior="automatic"
-        >
+    <ScrollView
+      style={styles.scroll}
+      contentContainerStyle={subscriptionFormStyles.detailsScrollContent}
+      showsVerticalScrollIndicator={false}
+      keyboardShouldPersistTaps="handled"
+      keyboardDismissMode="interactive"
+      contentInsetAdjustmentBehavior="scrollableAxes"
+    >
           {mode === 'view' ? (
             <>
               <SubscriptionDetailReadOnlyHero
@@ -504,9 +496,7 @@ export function SubscriptionDetailScreen({ navigation, route }: Props) {
               </Pressable>
             </>
           ) : null}
-        </ScrollView>
-      </View>
-    </TabScreenBackground>
+    </ScrollView>
   );
 }
 
@@ -518,6 +508,7 @@ const headerStyles = StyleSheet.create({
 });
 
 const fallbackStyles = StyleSheet.create({
+  screenRoot: { flex: 1, backgroundColor: colors.bg },
   wrap: { flex: 1, padding: 20, justifyContent: 'center' },
   text: { color: INK },
   back: { marginTop: 16, paddingVertical: 12 },
@@ -525,8 +516,7 @@ const fallbackStyles = StyleSheet.create({
 });
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: 'transparent' },
-  scroll: { flex: 1 },
+  scroll: { flex: 1, backgroundColor: colors.bg },
   pressed: { opacity: 0.75 },
 
   emptyWrap: { paddingHorizontal: 20, paddingVertical: 18 },

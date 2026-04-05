@@ -111,7 +111,7 @@ export function SubscriptionsSkeleton() {
 
 export function SubscriptionListSkeleton() {
   return (
-    <View style={sk.listCard}>
+    <View style={sk.listCardInPaddedList}>
       <SkeletonRow />
       <View style={sk.sep} />
       <SkeletonRow />
@@ -152,6 +152,17 @@ const sk = StyleSheet.create({
   },
   listCard: {
     marginHorizontal: f.cardInsetX,
+    backgroundColor: colors.surface,
+    borderRadius: f.listCardRadius,
+    overflow: 'hidden',
+    ...f.shadow,
+  },
+  /**
+   * Use inside scroll views that already apply `cardInsetX` horizontal padding (e.g. Subscriptions
+   * `FlatList` `listContent`). Omitting side margin avoids double inset and matches real row cards.
+   */
+  listCardInPaddedList: {
+    alignSelf: 'stretch',
     backgroundColor: colors.surface,
     borderRadius: f.listCardRadius,
     overflow: 'hidden',
