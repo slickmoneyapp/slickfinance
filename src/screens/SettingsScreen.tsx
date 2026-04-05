@@ -21,6 +21,7 @@ import DateTimePicker from '@react-native-community/datetimepicker';
 import * as Notifications from 'expo-notifications';
 import * as Haptics from 'expo-haptics';
 import { PRIVACY_URL, TERMS_URL } from '../constants/legalUrls';
+import { openUrlInApp } from '../lib/openInAppBrowser';
 import { hapticSelection } from '../ui/haptics';
 import { colors, figma, spacing } from '../ui/theme';
 import { useAuthStore } from '../features/auth/store';
@@ -247,7 +248,7 @@ export function SettingsScreen() {
       {/* ── Support ── */}
       <SectionHeader>Support</SectionHeader>
       <GroupedCard>
-        <CellRow label="Rate App" chevron onPress={() => Linking.openURL(APP_STORE_URL)} />
+        <CellRow label="Rate App" chevron onPress={() => void openUrlInApp(APP_STORE_URL)} />
         <Sep />
         <CellRow label="Share App" chevron onPress={() => Share.share({ url: SHARE_URL, message: 'Check out Slick Money — track your subscriptions!' })} />
         <Sep />
@@ -257,9 +258,9 @@ export function SettingsScreen() {
       {/* ── Legal ── */}
       <SectionHeader>Legal</SectionHeader>
       <GroupedCard>
-        <CellRow label="Privacy Policy" chevron onPress={() => Linking.openURL(PRIVACY_URL)} />
+        <CellRow label="Privacy Policy" chevron onPress={() => void openUrlInApp(PRIVACY_URL)} />
         <Sep />
-        <CellRow label="Terms of Use" chevron onPress={() => Linking.openURL(TERMS_URL)} />
+        <CellRow label="Terms of Use" chevron onPress={() => void openUrlInApp(TERMS_URL)} />
       </GroupedCard>
 
       {/* ── Sign Out ── */}

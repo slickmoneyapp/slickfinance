@@ -1,7 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Image as RNImage,
-  Linking,
   PanResponder,
   Platform,
   Pressable,
@@ -15,6 +14,7 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { SFIcon } from '../components/SFIcon';
+import { openUrlInApp } from '../lib/openInAppBrowser';
 import { formatMoney, monthlySpendTotal } from '../features/subscriptions/calc';
 import { useSubscriptionsStore } from '../features/subscriptions/store';
 import { hapticImpactHeavy, hapticImpactMedium, hapticSelection } from '../ui/haptics';
@@ -353,7 +353,7 @@ function PartnerRow({
 }) {
   const open = useCallback(() => {
     void hapticSelection();
-    void Linking.openURL(url);
+    void openUrlInApp(url);
   }, [url]);
 
   return (

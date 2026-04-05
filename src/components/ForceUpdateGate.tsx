@@ -1,15 +1,9 @@
 import React, { useEffect, useState } from 'react';
-import {
-  Linking,
-  Platform,
-  Pressable,
-  StyleSheet,
-  Text,
-  View,
-} from 'react-native';
+import { Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { SFIcon } from './SFIcon';
 import Constants from 'expo-constants';
+import { openUrlInApp } from '../lib/openInAppBrowser';
 import { supabase } from '../lib/supabase';
 import { colors } from '../ui/theme';
 
@@ -86,7 +80,7 @@ export function ForceUpdateGate({ children }: Props) {
 
       <View style={s.buttonsSection}>
         <Pressable
-          onPress={() => Linking.openURL(storeUrl)}
+          onPress={() => void openUrlInApp(storeUrl)}
           style={({ pressed }) => [s.btn, s.updateBtn, pressed && s.pressed]}
         >
           <SFIcon name="apple.logo" size={20} color="#FFFFFF" />

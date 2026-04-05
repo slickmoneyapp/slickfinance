@@ -5,7 +5,6 @@ import {
   Animated,
   Easing,
   Image as RNImage,
-  Linking,
   type NativeScrollEvent,
   NativeSyntheticEvent,
   Platform,
@@ -32,6 +31,7 @@ import { PRIVACY_URL, TERMS_URL } from '../constants/legalUrls';
 import { IosPageControl } from '../components/IosPageControl';
 import { SFIcon } from '../components/SFIcon';
 import { useAuthStore } from '../features/auth/store';
+import { openUrlInApp } from '../lib/openInAppBrowser';
 import { supabase } from '../lib/supabase';
 import { colors, sheetTypography } from '../ui/theme';
 
@@ -391,14 +391,14 @@ export function LoginScreen() {
               By continuing, you agree to our{'\n'}
               <Text
                 style={s.termsLink}
-                onPress={() => Linking.openURL(TERMS_URL)}
+                onPress={() => void openUrlInApp(TERMS_URL)}
               >
                 Terms of Service
               </Text>
               {' and '}
               <Text
                 style={s.termsLink}
-                onPress={() => Linking.openURL(PRIVACY_URL)}
+                onPress={() => void openUrlInApp(PRIVACY_URL)}
               >
                 Privacy Policy
               </Text>
