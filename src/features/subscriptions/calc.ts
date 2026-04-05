@@ -118,6 +118,17 @@ export function getMonthOverMonthSpendPill(subs: Subscription[], now: Date = new
   return { tone: 'red', label: `${pct}% more vs ${prevLabel}` };
 }
 
+/** Digits only (commas for thousands), no currency symbol — pair with a separate Currency row. */
+export function formatAmountDigits(amount: number) {
+  const rounded = Math.round(amount * 100) / 100;
+  const sign = rounded < 0 ? '-' : '';
+  const abs = Math.abs(rounded);
+  const dollars = Math.floor(abs);
+  const cents = Math.round((abs - dollars) * 100);
+  const withCommas = dollars.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+  return cents > 0 ? `${sign}${withCommas}.${cents.toString().padStart(2, '0')}` : `${sign}${withCommas}`;
+}
+
 export function formatMoney(amount: number, currency: Subscription['currency']) {
   // Simple MVP formatter; can be swapped for Intl later.
   const rounded = Math.round(amount * 100) / 100;

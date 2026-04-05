@@ -5,7 +5,24 @@ import { supabase } from '../../lib/supabase';
 import type { RealtimePostgresChangesPayload } from '@supabase/supabase-js';
 
 export type SubscriptionSort = 'nearest_renewal' | 'highest_price' | 'alpha' | 'recent';
+
+/** List filter — matches `Subscription['status']` plus `all`. */
 export type SubscriptionFilter = 'all' | 'active' | 'trial' | 'paused' | 'cancelled';
+
+const SUBSCRIPTION_FILTERS: SubscriptionFilter[] = [
+  'all',
+  'active',
+  'trial',
+  'paused',
+  'cancelled',
+];
+
+function normalizeSubscriptionFilter(raw: string | null | undefined): SubscriptionFilter {
+  if (raw && (SUBSCRIPTION_FILTERS as readonly string[]).includes(raw)) {
+    return raw as SubscriptionFilter;
+  }
+  return 'all';
+}
 
 /* ------------------------------------------------------------------ */
 /*  DB ↔ App mapping helpers                                          */
@@ -202,10 +219,15 @@ export const useSubscriptionsStore = create<SubscriptionsState>()((set, get) => 
         .single();
 
       if (prefs) {
+        const rawFilter = prefs.filter as string | undefined;
+        const filter = normalizeSubscriptionFilter(rawFilter);
         set({
           sort: (prefs.sort as SubscriptionSort) ?? 'nearest_renewal',
-          filter: (prefs.filter as SubscriptionFilter) ?? 'all',
+          filter,
         });
+        if (rawFilter != null && filter !== rawFilter) {
+          void syncPreferences({ filter });
+        }
       }
     }
 
@@ -303,7 +325,9 @@ export const useSubscriptionsStore = create<SubscriptionsState>()((set, get) => 
 
 export function selectVisibleSubscriptions(state: Pick<SubscriptionsState, 'items' | 'sort' | 'filter'>) {
   const filtered =
-    state.filter === 'all' ? state.items : state.items.filter(s => s.status === state.filter);
+    state.filter === 'all'
+      ? state.items
+      : state.items.filter((s) => s.status === state.filter);
 
   return filtered.slice().sort((a, b) => {
     if (state.sort === 'alpha') return a.serviceName.localeCompare(b.serviceName);

@@ -12,11 +12,10 @@ import {
 } from 'react-native';
 import * as Haptics from 'expo-haptics';
 import { useSubscriptionsStore } from '../features/subscriptions/store';
-import { formatMoney } from '../features/subscriptions/calc';
-import { toLocalDateString } from '../features/subscriptions/buildBillingHistoryFromSubscription';
-import type { NativeStackScreenProps } from '@react-navigation/native-stack';
+import { parseLocalDate, toLocalDateString } from '../features/subscriptions/buildBillingHistoryFromSubscription';
+import type { NativeStackHeaderItem, NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../../App';
-import { colors } from '../ui/theme';
+import { colors, radius, typeScale } from '../ui/theme';
 import { hapticImpactMedium, hapticSelection } from '../ui/haptics';
 import { requestNotificationPermissions } from '../features/notifications/service';
 import type { BillingCycle, CurrencyCode, Subscription } from '../features/subscriptions/types';
@@ -24,10 +23,6 @@ import {
   SubscriptionDetailsForm,
   SubscriptionDetailsReadOnlySections,
   SubscriptionDetailReadOnlyHero,
-  SubscriptionFormGroupedCard,
-  SubscriptionFormSectionHeader,
-  SubscriptionFormSep,
-  SubscriptionStatusBadge,
   TRIAL_LENGTH_OPTIONS,
   type TrialLengthDays,
 } from '../features/subscriptions/SubscriptionDetailsForm';
@@ -37,8 +32,17 @@ type Props = NativeStackScreenProps<RootStackParamList, 'SubscriptionDetail'>;
 
 const INK = colors.text;
 const DIM = colors.textMuted;
-const GREEN = colors.success;
 const SAVE_HEADER_PURPLE = '#CB30E0';
+
+function iosMajorVersion(): number {
+  if (Platform.OS !== 'ios') return 0;
+  const v = Platform.Version;
+  const s = typeof v === 'number' ? String(v) : v;
+  return parseInt(s.split('.')[0] ?? '0', 10) || 0;
+}
+
+/** `UIBarButtonItem.Style.prominent` — iOS 26+ (see Add Subscription details header). */
+const IOS_USE_PROMINENT_SAVE_BUTTON = iosMajorVersion() >= 26;
 
 const EDIT_BILLING_CYCLES: Subscription['billingCycle'][] = [
   'weekly',
@@ -198,32 +202,94 @@ export function SubscriptionDetailScreen({ navigation, route }: Props) {
         title: 'Subscription',
         headerRight: undefined,
         headerLeft: undefined,
+        unstable_headerRightItems: undefined,
+        unstable_headerLeftItems: undefined,
       });
       return;
     }
 
     if (mode === 'view') {
+      if (Platform.OS === 'ios') {
+        navigation.setOptions({
+          title: sub.serviceName,
+          headerBackVisible: true,
+          headerLeft: undefined,
+          headerRight: undefined,
+          unstable_headerLeftItems: undefined,
+          unstable_headerRightItems: (): NativeStackHeaderItem[] => [
+            {
+              type: 'button',
+              label: 'Edit',
+              tintColor: INK,
+              onPress: enterEdit,
+              accessibilityLabel: 'Edit subscription',
+            },
+          ],
+        });
+      } else {
+        navigation.setOptions({
+          title: sub.serviceName,
+          headerBackVisible: true,
+          headerLeft: undefined,
+          unstable_headerLeftItems: undefined,
+          unstable_headerRightItems: undefined,
+          headerRight: () => (
+            <Pressable
+              onPress={enterEdit}
+              style={headerStyles.barButtonPad}
+              accessibilityRole="button"
+              accessibilityLabel="Edit subscription"
+            >
+              <Text style={headerStyles.action}>Edit</Text>
+            </Pressable>
+          ),
+        });
+      }
+    } else if (Platform.OS === 'ios') {
       navigation.setOptions({
         title: sub.serviceName,
-        headerBackVisible: true,
+        headerBackVisible: false,
         headerLeft: undefined,
-        headerRight: () => (
-          <Pressable
-            onPress={enterEdit}
-            hitSlop={8}
-            accessibilityRole="button"
-            accessibilityLabel="Edit subscription"
-          >
-            <Text style={headerStyles.action}>Edit</Text>
-          </Pressable>
-        ),
+        headerRight: undefined,
+        unstable_headerLeftItems: (): NativeStackHeaderItem[] => [
+          {
+            type: 'button',
+            label: 'Cancel',
+            tintColor: INK,
+            onPress: cancelEdit,
+            accessibilityLabel: 'Cancel editing',
+          },
+        ],
+        unstable_headerRightItems: (): NativeStackHeaderItem[] => [
+          {
+            type: 'button',
+            label: 'Save',
+            variant: IOS_USE_PROMINENT_SAVE_BUTTON ? 'prominent' : 'done',
+            tintColor: SAVE_HEADER_PURPLE,
+            labelStyle: IOS_USE_PROMINENT_SAVE_BUTTON
+              ? { fontWeight: '600', color: '#FFFFFF' }
+              : { fontWeight: '600' },
+            disabled: saving,
+            onPress: () => {
+              void saveEdit();
+            },
+            accessibilityLabel: 'Save changes',
+          },
+        ],
       });
     } else {
       navigation.setOptions({
         title: sub.serviceName,
         headerBackVisible: false,
+        unstable_headerLeftItems: undefined,
+        unstable_headerRightItems: undefined,
         headerLeft: () => (
-          <Pressable onPress={cancelEdit} hitSlop={8} accessibilityRole="button" accessibilityLabel="Cancel editing">
+          <Pressable
+            onPress={cancelEdit}
+            style={headerStyles.barButtonPad}
+            accessibilityRole="button"
+            accessibilityLabel="Cancel editing"
+          >
             <Text style={headerStyles.cancel}>Cancel</Text>
           </Pressable>
         ),
@@ -232,12 +298,12 @@ export function SubscriptionDetailScreen({ navigation, route }: Props) {
             onPress={() => {
               void saveEdit();
             }}
-            hitSlop={8}
             disabled={saving}
+            style={[headerStyles.androidSaveButton, saving && headerStyles.saveDisabled]}
             accessibilityRole="button"
             accessibilityLabel="Save changes"
           >
-            <Text style={[headerStyles.save, saving && headerStyles.saveDisabled]}>Save</Text>
+            <Text style={headerStyles.androidSaveLabel}>Save</Text>
           </Pressable>
         ),
       });
@@ -278,6 +344,7 @@ export function SubscriptionDetailScreen({ navigation, route }: Props) {
     }
   }, [editDraft?.nextCharge, mode]);
 
+  /** Sum of projected charges from subscription start through today (see billing history). */
   const totalSpent = useMemo(() => {
     if (!sub) return 0;
     return sub.billingHistory
@@ -285,9 +352,16 @@ export function SubscriptionDetailScreen({ navigation, route }: Props) {
       .reduce((sum, e) => sum + e.amount, 0);
   }, [sub]);
 
+  /** Days since subscription start (local date); falls back to account created if start is invalid. */
   const subscribedDays = useMemo(() => {
     if (!sub) return 0;
-    return Math.floor((Date.now() - new Date(sub.createdAt).getTime()) / (1000 * 60 * 60 * 24));
+    const start = sub.subscriptionStartDate
+      ? parseLocalDate(sub.subscriptionStartDate)
+      : new Date(sub.createdAt);
+    if (Number.isNaN(start.getTime())) {
+      return Math.max(0, Math.floor((Date.now() - new Date(sub.createdAt).getTime()) / 86400000));
+    }
+    return Math.max(0, Math.floor((Date.now() - start.getTime()) / 86400000));
   }, [sub]);
 
   if (!sub) {
@@ -304,27 +378,6 @@ export function SubscriptionDetailScreen({ navigation, route }: Props) {
   }
 
   const subscription = sub;
-  const isCancelled = subscription.status === 'cancelled';
-
-  function handleMarkCancelled() {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    if (isCancelled) {
-      update(subscription.id, { status: 'active' });
-    } else {
-      Alert.alert(
-        'Mark as Cancelled?',
-        'This will mark the subscription as cancelled and stop reminders.',
-        [
-          { text: 'Keep Active', style: 'cancel' },
-          {
-            text: 'Mark as Cancelled',
-            style: 'destructive',
-            onPress: () => update(subscription.id, { status: 'cancelled', reminderEnabled: false }),
-          },
-        ],
-      );
-    }
-  }
 
   function handleDelete() {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
@@ -377,7 +430,7 @@ export function SubscriptionDetailScreen({ navigation, route }: Props) {
                 category={subscription.category}
                 isTrial={subscription.isTrial}
                 trialLengthDays={subscription.trialLengthDays}
-                statusChip={<SubscriptionStatusBadge status={subscription.status} />}
+                status={subscription.status}
               />
               <SubscriptionDetailsReadOnlySections
                 price={subscription.price}
@@ -395,7 +448,6 @@ export function SubscriptionDetailScreen({ navigation, route }: Props) {
                 reminderTime={subscription.reminderTime}
                 url={subscription.url}
                 description={subscription.description}
-                status={subscription.status}
                 totalSpent={totalSpent}
                 subscribedDays={subscribedDays}
               />
@@ -444,66 +496,56 @@ export function SubscriptionDetailScreen({ navigation, route }: Props) {
             />
           ) : null}
 
-          <SubscriptionFormSectionHeader>Billing history</SubscriptionFormSectionHeader>
-          <SubscriptionFormGroupedCard>
-            {subscription.billingHistory.length === 0 ? (
-              <View style={styles.emptyWrap}>
-                <Text style={styles.emptyText}>No billing history yet.</Text>
-              </View>
-            ) : (
-              subscription.billingHistory
-                .slice()
-                .reverse()
-                .map((entry, idx) => (
-                  <View key={entry.id}>
-                    {idx !== 0 ? <SubscriptionFormSep /> : null}
-                    <View style={styles.historyRow}>
-                      <View style={styles.historyDot} />
-                      <View style={{ flex: 1 }}>
-                        <Text style={styles.historyLabel}>{entry.label}</Text>
-                        <Text style={styles.historyDate}>
-                          {new Date(entry.date).toLocaleDateString('en-GB', {
-                            day: 'numeric',
-                            month: 'short',
-                            year: 'numeric',
-                          })}
-                        </Text>
-                      </View>
-                      <Text style={styles.historyAmount}>{formatMoney(entry.amount, entry.currency)}</Text>
-                    </View>
-                  </View>
-                ))
-            )}
-          </SubscriptionFormGroupedCard>
-
           {mode === 'view' ? (
-            <>
-              <Pressable
-                onPress={handleMarkCancelled}
-                style={({ pressed }) => [
-                  styles.actionBtn,
-                  isCancelled ? styles.reactivateBtn : styles.cancelBtn,
-                  pressed && styles.pressed,
-                ]}
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Delete subscription"
+              onPress={handleDelete}
+              android_ripple={{ color: 'rgba(229, 57, 53, 0.16)' }}
+              style={({ pressed }) =>
+                Platform.OS === 'ios'
+                  ? [
+                      subscriptionFormStyles.iosDestructiveRow,
+                      pressed && subscriptionFormStyles.rowPressed,
+                    ]
+                  : [styles.deleteButtonAndroid, pressed && styles.pressed]
+              }
+            >
+              <Text
+                style={
+                  Platform.OS === 'ios'
+                    ? subscriptionFormStyles.iosDestructiveRowText
+                    : styles.deleteButtonTextAndroid
+                }
               >
-                <Text style={[styles.actionBtnText, isCancelled && { color: GREEN }]}>
-                  {isCancelled ? 'Mark as Active' : 'Mark as Cancelled'}
-                </Text>
-              </Pressable>
-
-              <Pressable onPress={handleDelete} style={({ pressed }) => [styles.deleteLink, pressed && styles.pressed]}>
-                <Text style={styles.deleteLinkText}>Delete subscription</Text>
-              </Pressable>
-            </>
+                Delete subscription
+              </Text>
+            </Pressable>
           ) : null}
     </ScrollView>
   );
 }
 
 const headerStyles = StyleSheet.create({
+  /** Matches native bar button insets when not using `unstable_header*Items`. */
+  barButtonPad: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    justifyContent: 'center',
+  },
   action: { fontSize: 17, fontWeight: '600', color: INK },
-  cancel: { fontSize: 17, fontWeight: '400', color: Platform.OS === 'ios' ? '#007AFF' : INK },
-  save: { fontSize: 17, fontWeight: '600', color: SAVE_HEADER_PURPLE },
+  cancel: { fontSize: 17, fontWeight: '400', color: INK },
+  androidSaveButton: {
+    backgroundColor: SAVE_HEADER_PURPLE,
+    paddingHorizontal: 14,
+    paddingVertical: 6,
+    borderRadius: 16,
+  },
+  androidSaveLabel: {
+    color: '#FFFFFF',
+    fontSize: 15,
+    fontWeight: '600',
+  },
   saveDisabled: { opacity: 0.45 },
 });
 
@@ -519,36 +561,20 @@ const styles = StyleSheet.create({
   scroll: { flex: 1, backgroundColor: colors.bg },
   pressed: { opacity: 0.75 },
 
-  emptyWrap: { paddingHorizontal: 20, paddingVertical: 18 },
-  emptyText: { fontSize: 14, color: DIM },
-
-  historyRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 20,
-    paddingVertical: 14,
-    gap: 12,
-  },
-  historyDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: 'rgba(11,8,3,0.15)',
-  },
-  historyLabel: { fontSize: 14, fontWeight: '600', color: INK },
-  historyDate: { fontSize: 12, color: DIM, marginTop: 2 },
-  historyAmount: { fontSize: 15, fontWeight: '700', color: INK },
-
-  actionBtn: {
-    marginTop: 8,
-    height: 52,
-    borderRadius: 16,
+  deleteButtonAndroid: {
+    marginTop: 24,
+    alignSelf: 'stretch',
+    minHeight: 48,
+    borderRadius: radius.button,
+    borderWidth: 1,
+    borderColor: '#E53935',
+    backgroundColor: colors.surface,
     alignItems: 'center',
     justifyContent: 'center',
+    paddingHorizontal: 16,
   },
-  cancelBtn: { backgroundColor: 'rgba(11,8,3,0.07)' },
-  reactivateBtn: { backgroundColor: '#E8F9EE' },
-  actionBtnText: { fontSize: 16, fontWeight: '700', color: INK },
-  deleteLink: { marginTop: 14, alignItems: 'center', paddingVertical: 10 },
-  deleteLinkText: { fontSize: 15, fontWeight: '600', color: '#E53935' },
+  deleteButtonTextAndroid: {
+    ...typeScale.button,
+    color: '#E53935',
+  },
 });

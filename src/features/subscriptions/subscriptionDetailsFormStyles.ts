@@ -21,6 +21,9 @@ export const IOS_ROW_HIGHLIGHT = iosDynamic(
   'rgba(118, 118, 128, 0.24)',
 );
 
+/** System red — matches destructive controls in Settings / UITableView. */
+export const IOS_DESTRUCTIVE = iosDynamic('#FF3B30', '#FF453A', '#E53935');
+
 export const androidTextFix =
   Platform.OS === 'android' ? ({ includeFontPadding: false } as const) : {};
 
@@ -117,13 +120,12 @@ export const subscriptionFormStyles = StyleSheet.create({
     alignSelf: 'stretch',
     gap: 16,
   },
+  /** Outer square (add / edit / preview hero) — logo asset is 48×48 inside. */
   heroLogoCircle: {
-    width: 96,
-    height: 96,
-    borderRadius: 48,
+    width: 84,
+    height: 84,
+    borderRadius: 42,
     backgroundColor: '#FFFFFF',
-    borderWidth: 1,
-    borderColor: '#E8E8E8',
     alignItems: 'center',
     justifyContent: 'center',
     overflow: 'hidden',
@@ -192,5 +194,25 @@ export const subscriptionFormStyles = StyleSheet.create({
     textAlign: 'right',
     minWidth: 48,
     paddingVertical: 0,
+  },
+  /** Inset-grouped style destructive row (Settings / native list). */
+  iosDestructiveRow: {
+    marginTop: 24,
+    alignSelf: 'stretch',
+    minHeight: 44,
+    borderRadius: 12,
+    backgroundColor: IOS_CARD_BG,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    overflow: 'hidden',
+  },
+  iosDestructiveRowText: {
+    fontSize: 16,
+    fontWeight: '600',
+    lineHeight: 20,
+    color: IOS_DESTRUCTIVE,
+    ...androidTextFix,
   },
 });

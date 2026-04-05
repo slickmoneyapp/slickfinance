@@ -235,7 +235,9 @@ export function AddSubscriptionFormScreen({ navigation, route }: Props) {
         <View style={[s.card, s.heroCard]}>
           <View style={s.heroTop}>
             {domain ? (
-              <CompanyLogo domain={domain} size={52} rounded={16} fallbackText={serviceName || '?'} />
+              <View style={s.heroLogoOuter}>
+                <CompanyLogo domain={domain} size={48} rounded={24} fallbackText={serviceName || '?'} />
+              </View>
             ) : (
               <View style={s.heroFallback}>
                 <Text style={s.heroFallbackText}>{(serviceName[0] ?? '?').toUpperCase()}</Text>
@@ -714,15 +716,25 @@ const s = StyleSheet.create({
   formRowRight: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   heroCard: { marginTop: 16, paddingHorizontal: 18, paddingVertical: 16, gap: 14 },
   heroTop: { flexDirection: 'row', alignItems: 'center', gap: 14 },
+  /** Matches subscription detail / add-flow hero: 84 outer, 48 logo — no outline. */
+  heroLogoOuter: {
+    width: 84,
+    height: 84,
+    borderRadius: 42,
+    backgroundColor: '#FFFFFF',
+    alignItems: 'center',
+    justifyContent: 'center',
+    overflow: 'hidden',
+  },
   heroFallback: {
-    width: 52,
-    height: 52,
-    borderRadius: 16,
+    width: 84,
+    height: 84,
+    borderRadius: 42,
     backgroundColor: BG,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  heroFallbackText: { fontSize: 22, fontWeight: '800', color: INK },
+  heroFallbackText: { fontSize: 28, fontWeight: '800', color: INK },
   heroName: { flex: 1, fontSize: 18, fontWeight: '700', color: INK },
   priceRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   currencyPill: {

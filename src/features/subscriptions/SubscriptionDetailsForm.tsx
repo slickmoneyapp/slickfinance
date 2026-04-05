@@ -15,7 +15,7 @@ import { CompanyLogo } from '../../components/CompanyLogo';
 import { hapticSelection } from '../../ui/haptics';
 import { colors } from '../../ui/theme';
 import type { BillingCycle, CurrencyCode, Subscription, SubscriptionStatus } from './types';
-import { formatMoney } from './calc';
+import { formatAmountDigits, formatMoney } from './calc';
 import {
   ADD_SUBSCRIPTION_CURRENCIES,
   BASE_CATEGORIES,
@@ -76,7 +76,8 @@ function heroBillingLabel(cycle: BillingCycle): string {
   return BILLING_CYCLE_SHORT_LABELS[cycle];
 }
 
-export const HERO_SMALL_LOGO_SIZE = 56;
+/** Logo.dev / monogram size inside `heroLogoCircle` (84×84 container). */
+export const HERO_SMALL_LOGO_SIZE = 48;
 
 export type SubscriptionDetailsFormProps = {
   nameRef: React.RefObject<TextInput | null>;
@@ -129,6 +130,14 @@ export function SubscriptionDetailsForm(p: SubscriptionDetailsFormProps) {
         ? '1 week before'
         : `${p.reminderDays} day${p.reminderDays > 1 ? 's' : ''} before`;
 
+  const sym = CURRENCY_SYMBOLS[p.currency];
+  const priceNum = Number(String(p.price).replace(',', '.'));
+  const heroDigits =
+    Number.isFinite(priceNum) && priceNum !== 0
+      ? formatAmountDigits(priceNum)
+      : p.price.trim() || '0.00';
+  const heroPriceDisplay = `${sym}${heroDigits}`;
+
   return (
     <>
       <View style={s.heroCard}>
@@ -139,7 +148,7 @@ export function SubscriptionDetailsForm(p: SubscriptionDetailsFormProps) {
                 <CompanyLogo
                   domain={p.domain}
                   size={HERO_SMALL_LOGO_SIZE}
-                  rounded={28}
+                  rounded={24}
                   fallbackText={p.serviceName}
                 />
               ) : (
@@ -161,8 +170,7 @@ export function SubscriptionDetailsForm(p: SubscriptionDetailsFormProps) {
                 {...(Platform.OS === 'android' ? { textAlignVertical: 'top' as const } : {})}
               />
               <Text style={s.heroPrice}>
-                {CURRENCY_SYMBOLS[p.currency]}
-                {p.price || '0.00'} / {heroCycleDisplay(p.billingCycle, p.customCycleDays)}
+                {heroPriceDisplay} / {heroCycleDisplay(p.billingCycle, p.customCycleDays)}
               </Text>
             </View>
           </View>
@@ -174,29 +182,6 @@ export function SubscriptionDetailsForm(p: SubscriptionDetailsFormProps) {
           contentContainerStyle={s.heroChipsScrollContent}
           keyboardShouldPersistTaps="handled"
         >
-          <MenuView
-            shouldOpenOnLongPress={false}
-            actions={ADD_SUBSCRIPTION_CURRENCIES.map((c) => ({
-              id: c,
-              title: heroCurrencyLabel(c),
-              state: p.currency === c ? ('on' as const) : ('off' as const),
-            }))}
-            onPressAction={({ nativeEvent }) => {
-              void hapticSelection();
-              p.onCurrencyChange(nativeEvent.event as CurrencyCode);
-            }}
-          >
-            <View style={s.heroChipWrap}>
-              <View style={s.heroChipPill}>
-                <View style={s.heroChipPillInner}>
-                  <Text style={s.heroChipPillText} numberOfLines={1}>
-                    {heroCurrencyLabel(p.currency)}
-                  </Text>
-                  <SFIcon name="chevron.down" size={13} color={colors.textMuted} weight="semibold" />
-                </View>
-              </View>
-            </View>
-          </MenuView>
           <MenuView
             shouldOpenOnLongPress={false}
             actions={p.billingCycleMenuIds.map((c) => ({
@@ -257,15 +242,30 @@ export function SubscriptionDetailsForm(p: SubscriptionDetailsFormProps) {
           right={
             <TextInput
               ref={p.priceRef}
-              value={p.price ? `${CURRENCY_SYMBOLS[p.currency]} ${p.price}` : ''}
+              value={p.price ? `${sym} ${p.price}` : ''}
               onChangeText={(t) => p.onPriceChange(t.replace(/[^0-9.,]/g, ''))}
-              placeholder={`${CURRENCY_SYMBOLS[p.currency]} 0.00`}
+              placeholder={`${sym} 0.00`}
               placeholderTextColor={IOS_SECONDARY}
               keyboardType="decimal-pad"
               style={s.amountInput}
             />
           }
         />
+        <Sep />
+        <MenuView
+          shouldOpenOnLongPress={false}
+          actions={ADD_SUBSCRIPTION_CURRENCIES.map((c) => ({
+            id: c,
+            title: heroCurrencyLabel(c),
+            state: p.currency === c ? ('on' as const) : ('off' as const),
+          }))}
+          onPressAction={({ nativeEvent }) => {
+            void hapticSelection();
+            p.onCurrencyChange(nativeEvent.event as CurrencyCode);
+          }}
+        >
+          <CellRow label="Currency" value={heroCurrencyLabel(p.currency)} chevron />
+        </MenuView>
       </GroupedCard>
 
       <SectionHeader>Schedule</SectionHeader>
@@ -472,6 +472,17 @@ export function SubscriptionDetailsForm(p: SubscriptionDetailsFormProps) {
   );
 }
 
+/** Solid fill + white label for status chip in read-only hero (matches chip size, inverted from default badge). */
+function readOnlyHeroStatusPill(status: SubscriptionStatus | string): { label: string; bg: string } {
+  const map: Record<string, { label: string; bg: string }> = {
+    active: { label: 'Active', bg: '#1B8A3C' },
+    trial: { label: 'Trial', bg: '#6B3FBC' },
+    paused: { label: 'Paused', bg: '#C2410C' },
+    cancelled: { label: 'Cancelled', bg: '#6B7280' },
+  };
+  return map[status] ?? map.cancelled;
+}
+
 /** Read-only hero matching add/edit details layout (logo, title, price, chips, optional trial line). */
 export type SubscriptionDetailReadOnlyHeroProps = {
   serviceName: string;
@@ -483,15 +494,15 @@ export type SubscriptionDetailReadOnlyHeroProps = {
   category: string;
   isTrial: boolean;
   trialLengthDays: number | null;
-  /** e.g. status badge — rendered under chips / trial line */
-  statusChip?: React.ReactNode;
+  status: SubscriptionStatus;
 };
 
 export function SubscriptionDetailReadOnlyHero(p: SubscriptionDetailReadOnlyHeroProps) {
-  const priceLine = `${CURRENCY_SYMBOLS[p.currency]}${p.price.toFixed(2)} / ${heroCycleDisplay(
+  const priceLine = `${CURRENCY_SYMBOLS[p.currency]}${formatAmountDigits(p.price)} / ${heroCycleDisplay(
     p.billingCycle,
     p.customCycleDays,
   )}`;
+  const statusPill = readOnlyHeroStatusPill(p.status);
 
   return (
     <View style={s.heroCard}>
@@ -502,7 +513,7 @@ export function SubscriptionDetailReadOnlyHero(p: SubscriptionDetailReadOnlyHero
               <CompanyLogo
                 domain={p.domain}
                 size={HERO_SMALL_LOGO_SIZE}
-                rounded={28}
+                rounded={24}
                 fallbackText={p.serviceName}
               />
             ) : (
@@ -524,9 +535,9 @@ export function SubscriptionDetailReadOnlyHero(p: SubscriptionDetailReadOnlyHero
         contentContainerStyle={s.heroChipsScrollContent}
       >
         <View style={s.heroChipWrap}>
-          <View style={s.heroChipPill}>
-            <Text style={s.heroChipPillText} numberOfLines={1}>
-              {heroCurrencyLabel(p.currency)}
+          <View style={[s.heroChipPill, { backgroundColor: statusPill.bg }]}>
+            <Text style={[s.heroChipPillText, { color: '#FFFFFF' }]} numberOfLines={1}>
+              {statusPill.label}
             </Text>
           </View>
         </View>
@@ -550,7 +561,6 @@ export function SubscriptionDetailReadOnlyHero(p: SubscriptionDetailReadOnlyHero
           <Text style={s.heroSub}>Trial · {p.trialLengthDays} days</Text>
         </View>
       ) : null}
-      {p.statusChip ? <View style={s.heroTextColumn}>{p.statusChip}</View> : null}
     </View>
   );
 }
@@ -682,7 +692,6 @@ export type SubscriptionDetailsReadOnlySectionsProps = {
   reminderTime: string;
   url?: string;
   description?: string;
-  status: SubscriptionStatus;
   totalSpent: number;
   subscribedDays: number;
 };
@@ -695,6 +704,8 @@ export function SubscriptionDetailsReadOnlySections(p: SubscriptionDetailsReadOn
     <>
       <GroupedCard>
         <CellRow label="Amount" value={formatMoney(p.price, p.currency)} />
+        <Sep />
+        <CellRow label="Currency" value={p.currency} />
       </GroupedCard>
 
       <SectionHeader>Schedule</SectionHeader>
@@ -768,14 +779,13 @@ export function SubscriptionDetailsReadOnlySections(p: SubscriptionDetailsReadOn
       <SectionHeader>Summary</SectionHeader>
       <GroupedCard>
         <CellRow
-          label="Status"
-          right={<SubscriptionStatusBadge status={p.status} />}
+          label="Total spent"
+          sublabel="Sum of projected charges to date"
+          value={formatMoney(p.totalSpent, p.currency)}
         />
         <Sep />
-        <CellRow label="Total spent" value={formatMoney(p.totalSpent, p.currency)} />
-        <Sep />
         <CellRow
-          label="Subscribed"
+          label="Member for"
           value={`${p.subscribedDays} day${p.subscribedDays !== 1 ? 's' : ''}`}
         />
       </GroupedCard>
