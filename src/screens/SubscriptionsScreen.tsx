@@ -12,12 +12,18 @@ import {
   View,
 } from 'react-native';
 import { SFIcon } from '../components/SFIcon';
+import { MenuView } from '@react-native-menu/menu';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors, figma } from '../ui/theme';
 import type { NavigationProp } from '@react-navigation/native';
 import { navigateRoot } from '../navigation/navigateRoot';
 import { CompanyLogo } from '../components/CompanyLogo';
-import { useSubscriptionsStore, selectVisibleSubscriptions } from '../features/subscriptions/store';
+import {
+  useSubscriptionsStore,
+  selectVisibleSubscriptions,
+  type SubscriptionFilter,
+  type SubscriptionSort,
+} from '../features/subscriptions/store';
 import { AnimatedMoneyAmount } from '../components/AnimatedMoneyAmount';
 import { formatMoney, getMonthOverMonthSpendPill, monthlySpendTotal } from '../features/subscriptions/calc';
 import type { Subscription } from '../features/subscriptions/types';
@@ -28,6 +34,22 @@ import { hapticImpact, hapticSelection } from '../ui/haptics';
 import { SubscriptionListSkeleton, SkeletonBlock } from '../components/Skeleton';
 
 type Props = { navigation: NavigationProp<any> };
+type MenuOption<T extends string> = { id: T; label: string };
+
+const STATUS_OPTIONS: MenuOption<SubscriptionFilter>[] = [
+  { id: 'all', label: 'All' },
+  { id: 'active', label: 'Active' },
+  { id: 'trial', label: 'Trial' },
+  { id: 'paused', label: 'Paused' },
+  { id: 'cancelled', label: 'Cancelled' },
+];
+
+const SORT_OPTIONS: MenuOption<SubscriptionSort>[] = [
+  { id: 'nearest_renewal', label: 'Nearest renewal' },
+  { id: 'highest_price', label: 'Highest price' },
+  { id: 'alpha', label: 'Alphabetical' },
+  { id: 'recent', label: 'Recently added' },
+];
 
 // ─── Design tokens ────────────────────────────────────────────────────────────
 const BG = colors.bg;
@@ -60,6 +82,8 @@ export function SubscriptionsScreen({ navigation }: Props) {
   const items     = useSubscriptionsStore((s) => s.items);
   const sort      = useSubscriptionsStore((s) => s.sort);
   const filter    = useSubscriptionsStore((s) => s.filter);
+  const setSort   = useSubscriptionsStore((s) => s.setSort);
+  const setFilter = useSubscriptionsStore((s) => s.setFilter);
   const hydrated  = useSubscriptionsStore((s) => s.hydrated);
 
   const { countFrom: heroMonthlyCountFrom, onCountComplete: onHeroMonthlyCountComplete } =
@@ -86,6 +110,36 @@ export function SubscriptionsScreen({ navigation }: Props) {
   function openAdd() {
     navigateRoot(navigation as any, 'AddSubscription');
   }
+
+  /** Filters only make sense once there is at least one subscription. */
+  const showSubscriptionFilters = hydrated && items.length >= 1;
+
+  const statusMenuActions = useMemo(
+    () =>
+      STATUS_OPTIONS.map((opt) => ({
+        id: opt.id,
+        title: opt.label,
+        state: filter === opt.id ? 'on' : 'off',
+      })),
+    [filter],
+  );
+  const sortMenuActions = useMemo(
+    () =>
+      SORT_OPTIONS.map((opt) => ({
+        id: opt.id,
+        title: opt.label,
+        state: sort === opt.id ? 'on' : 'off',
+      })),
+    [sort],
+  );
+  const selectedStatusLabel = useMemo(
+    () => STATUS_OPTIONS.find((opt) => opt.id === filter)?.label ?? 'All',
+    [filter],
+  );
+  const selectedSortLabel = useMemo(
+    () => SORT_OPTIONS.find((opt) => opt.id === sort)?.label ?? 'Nearest renewal',
+    [sort],
+  );
 
   const listData = hydrated ? visible : [];
   const isEmptyPortfolio = hydrated && items.length === 0;
@@ -123,7 +177,11 @@ export function SubscriptionsScreen({ navigation }: Props) {
           ]}
           ListHeaderComponent={(
             <View style={s.figmaTextColumn}>
-            <View style={s.spendingBlockAfterFiltersRemoved}>
+            <View
+              style={
+                showSubscriptionFilters ? s.spendingBlock : s.spendingBlockAfterFiltersRemoved
+              }
+            >
               <Text style={s.spendingContext}>Spending in {spendingMonthLabel}</Text>
               <AnimatedMoneyAmount
                 amount={monthly}
@@ -176,6 +234,41 @@ export function SubscriptionsScreen({ navigation }: Props) {
                 )}
               </View>
             </View>
+
+            {showSubscriptionFilters ? (
+              <View style={s.pillRow}>
+                <MenuView
+                  shouldOpenOnLongPress={false}
+                  actions={statusMenuActions as any}
+                  onPressAction={({ nativeEvent }) => {
+                    void hapticSelection();
+                    setFilter(nativeEvent.event as SubscriptionFilter);
+                  }}
+                >
+                  <View style={s.pill}>
+                    <View style={s.pillInnerRow}>
+                      <Text style={s.pillText}>{selectedStatusLabel}</Text>
+                      <SFIcon name="chevron.down" size={13} color={colors.textMuted} />
+                    </View>
+                  </View>
+                </MenuView>
+                <MenuView
+                  shouldOpenOnLongPress={false}
+                  actions={sortMenuActions as any}
+                  onPressAction={({ nativeEvent }) => {
+                    void hapticSelection();
+                    setSort(nativeEvent.event as SubscriptionSort);
+                  }}
+                >
+                  <View style={s.pill}>
+                    <View style={s.pillInnerRow}>
+                      <Text style={s.pillText}>{selectedSortLabel}</Text>
+                      <SFIcon name="chevron.down" size={13} color={colors.textMuted} />
+                    </View>
+                  </View>
+                </MenuView>
+              </View>
+            ) : null}
             </View>
           )}
           ListEmptyComponent={
@@ -368,6 +461,28 @@ const s = StyleSheet.create({
     alignSelf: 'auto',
     textAlign: 'left',
     flexShrink: 0,
+  },
+
+  pillRow: {
+    flexDirection: 'row',
+    justifyContent: 'flex-start',
+    flexWrap: 'wrap',
+    gap: figma.subscriptions273.pillRowGap,
+    marginTop: 16,
+    marginBottom: figma.subscriptions273.pillRowMarginBottom,
+    alignSelf: 'stretch',
+  },
+  pill: {
+    ...figma.subscriptions273.pill,
+  },
+  pillInnerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  pillText: {
+    ...figma.subscriptions273.pillLabel,
+    ...androidTextFix,
   },
 
   rowCardItem: {
