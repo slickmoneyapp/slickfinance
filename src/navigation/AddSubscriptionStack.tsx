@@ -102,6 +102,16 @@ const TRIAL_LENGTH_LABELS: Record<TrialLength, string> = {
   '1m': '1 Month',
 };
 
+const CYCLE_SHORT: Record<string, string> = {
+  weekly: 'wk',
+  monthly: 'mo',
+  quarterly: 'qtr',
+  yearly: 'yr',
+};
+function cycleShort(c: string): string {
+  return CYCLE_SHORT[c] ?? c;
+}
+
 const PAYMENT_METHODS = [
   'Cash', 'Credit Card', 'Debit Card',
   'PayPal', 'Google Pay', 'Apple Pay',
@@ -577,29 +587,38 @@ function DetailsBody({ companyName, domain, initialCategory, initialPrice, saveR
         keyboardShouldPersistTaps="handled"
         keyboardDismissMode="interactive"
       >
-        {/* ── Service + Price + Currency ────────────────── */}
-        <GroupedCard style={{ marginTop: 16 }}>
-          <View style={s.row}>
+        {/* ── Hero (matches SubscriptionDetailScreen) ──── */}
+        <View style={s.hero}>
+          <View style={s.heroLogoCircle}>
             {domain ? (
-              <CompanyLogo domain={domain} size={40} rounded={12} fallbackText={serviceName} />
+              <CompanyLogo domain={domain} size={56} rounded={28} fallbackText={serviceName} />
             ) : (
-              <View style={s.monogramCircle}>
-                <Text style={s.monogramText}>
-                  {(serviceName[0] ?? '?').toUpperCase()}
-                </Text>
-              </View>
+              <Text style={s.heroFallbackText}>
+                {(serviceName[0] ?? '?').toUpperCase()}
+              </Text>
             )}
-            <TextInput
-              ref={nameRef}
-              value={serviceName}
-              onChangeText={setServiceName}
-              placeholder="Service name"
-              placeholderTextColor={IOS_SECONDARY}
-              style={s.nameInput}
-              autoCapitalize="words"
-            />
           </View>
-          <Sep />
+          <TextInput
+            ref={nameRef}
+            value={serviceName}
+            onChangeText={setServiceName}
+            placeholder="Service name"
+            placeholderTextColor={IOS_SECONDARY}
+            style={s.heroNameInput}
+            autoCapitalize="words"
+            textAlign="center"
+          />
+          <Text style={s.heroPrice}>
+            {CURRENCY_SYMBOLS[currency]}
+            {price || '0.00'} / {cycleShort(billingCycle)}
+          </Text>
+          <Text style={s.heroSub}>
+            {isTrial ? 'Trial' : BILLING_CYCLE_LABELS[billingCycle]}
+          </Text>
+        </View>
+
+        {/* ── Pricing ───────────────────────────────────── */}
+        <GroupedCard>
           <CellRow
             label="Amount"
             right={
@@ -1118,27 +1137,55 @@ const s = StyleSheet.create({
     marginTop: 8,
   },
 
-  /* ── Details form custom inputs ────────────────────── */
-  monogramCircle: {
-    width: 40,
-    height: 40,
-    borderRadius: 12,
-    backgroundColor: 'rgba(11,8,3,0.06)',
+  /* ── Hero (matches SubscriptionDetailScreen) ───────── */
+  hero: {
+    alignItems: 'center',
+    paddingTop: 20,
+    paddingBottom: 32,
+  },
+  heroLogoCircle: {
+    width: 96,
+    height: 96,
+    borderRadius: 48,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#E8E8E8',
     alignItems: 'center',
     justifyContent: 'center',
+    overflow: 'hidden',
   },
-  monogramText: {
-    fontSize: 18,
+  heroFallbackText: {
+    fontSize: 24,
     fontWeight: '800',
-    color: 'rgba(11,8,3,0.65)',
-  },
-  nameInput: {
-    flex: 1,
-    fontSize: 16,
-    fontWeight: '600',
     color: IOS_PRIMARY,
+  },
+  heroNameInput: {
+    marginTop: 20,
+    fontFamily: 'BricolageGrotesque_800ExtraBold',
+    fontSize: 34,
+    lineHeight: 42,
+    color: '#000',
+    textAlign: 'center',
+    width: '100%',
+    paddingHorizontal: 20,
     paddingVertical: 0,
   },
+  heroPrice: {
+    marginTop: 12,
+    fontSize: 20,
+    fontWeight: '600',
+    color: IOS_PRIMARY,
+    textAlign: 'center',
+  },
+  heroSub: {
+    marginTop: 8,
+    fontSize: 14,
+    fontWeight: '500',
+    color: IOS_SECONDARY,
+    textAlign: 'center',
+  },
+
+  /* ── Details form custom inputs ────────────────────── */
   amountInput: {
     fontSize: 17,
     fontWeight: '600',
