@@ -11,16 +11,13 @@ import {
   Pressable,
   ScrollView,
   StyleSheet,
-  Switch,
   Text,
   TextInput,
   View,
 } from 'react-native';
 import { SFIcon } from '../components/SFIcon';
 import { CompanyLogo } from '../components/CompanyLogo';
-import DateTimePicker from '@react-native-community/datetimepicker';
-import { MenuView } from '@react-native-menu/menu';
-import { hapticImpactMedium, hapticSelection } from '../ui/haptics';
+import { hapticImpactMedium } from '../ui/haptics';
 import { toLocalDateString } from '../features/subscriptions/buildBillingHistoryFromSubscription';
 import { useSubscriptionsStore } from '../features/subscriptions/store';
 import { requestNotificationPermissions } from '../features/notifications/service';
@@ -28,15 +25,11 @@ import { searchBrands, type BrandResult } from '../utils/brandSearch';
 import { colors, figma, spacing } from '../ui/theme';
 import type { Subscription } from '../features/subscriptions/types';
 import {
-  ADD_SUBSCRIPTION_CURRENCIES,
-  BASE_CATEGORIES,
-  BILLING_CYCLE_LABELS,
   BILLING_CYCLE_OPTIONS,
-  BILLING_CYCLE_SHORT_LABELS,
-  CURRENCY_SYMBOLS,
   POPULAR_SERVICES_BY_SECTION,
   type ServiceTemplate,
 } from '../features/subscriptions/addSubscriptionCatalog';
+import { SubscriptionDetailsForm, type TrialLengthDays } from '../features/subscriptions/SubscriptionDetailsForm';
 
 /* ------------------------------------------------------------------ */
 /*  iOS dynamic colors — exact match with SettingsScreen               */
@@ -77,14 +70,6 @@ const IOS_ROW_HIGHLIGHT = iosDynamic(
 const androidTextFix =
   Platform.OS === 'android' ? ({ includeFontPadding: false } as const) : {};
 
-function heroCurrencyLabel(c: 'USD' | 'EUR' | 'GEL'): string {
-  return c;
-}
-
-function heroBillingLabel(cycle: Subscription['billingCycle']): string {
-  return BILLING_CYCLE_SHORT_LABELS[cycle];
-}
-
 /* ------------------------------------------------------------------ */
 /*  Types                                                              */
 /* ------------------------------------------------------------------ */
@@ -104,46 +89,10 @@ type FlowState =
 /*  Catalog constants                                                  */
 /* ------------------------------------------------------------------ */
 
-const TRIAL_LENGTH_OPTIONS = [3, 7, 14, 30] as const;
-type TrialLengthDays = (typeof TRIAL_LENGTH_OPTIONS)[number];
-const TRIAL_LENGTH_LABELS: Record<number, string> = {
-  3: '3 Days',
-  7: '7 Days',
-  14: '14 Days',
-  30: '30 Days',
-};
-
-const CYCLE_SHORT: Record<string, string> = {
-  weekly: 'wk',
-  monthly: 'mo',
-  quarterly: 'qtr',
-  yearly: 'yr',
-};
-function cycleShort(c: string): string {
-  return CYCLE_SHORT[c] ?? c;
-}
-
-function parseTime(hhmm: string): Date {
-  const [h, m] = hhmm.split(':').map(Number);
-  const d = new Date();
-  d.setHours(Number.isFinite(h) ? h! : 9, Number.isFinite(m) ? m! : 0, 0, 0);
-  return d;
-}
-
-const PAYMENT_METHODS = [
-  'Cash', 'Credit Card', 'Debit Card',
-  'PayPal', 'Google Pay', 'Apple Pay',
-  'Stripe', 'Bank Transfer', 'Crypto',
-  'AliPay', 'WeChat', 'SEPA', 'Klarna',
-  'Venmo', 'Interac',
-];
-
 function formatStartingPrice(price: number): string {
   const formatted = price % 1 === 0 ? `$${price}` : `$${price.toFixed(2)}`;
   return `${formatted}/m`;
 }
-
-const HERO_SMALL_LOGO_SIZE = 56;
 
 /* ================================================================== */
 /*  Flow Navigator                                                     */
@@ -480,6 +429,7 @@ function DetailsBody({ companyName, domain, initialCategory, initialPrice, saveR
   );
   const [currency, setCurrency] = useState<'USD' | 'EUR' | 'GEL'>('USD');
   const [billingCycle, setBillingCycle] = useState<Subscription['billingCycle']>('monthly');
+  const [customCycleDays, setCustomCycleDays] = useState(30);
   const [nextCharge, setNextCharge] = useState<Date>(() => {
     const d = new Date();
     d.setDate(d.getDate() + 30);
@@ -512,7 +462,6 @@ function DetailsBody({ companyName, domain, initialCategory, initialPrice, saveR
       setSubscriptionStartDate(new Date(nextCharge.getTime()));
     }
   }, [nextCharge]);
-
 
   saveRef.current = async () => {
     if (savingRef.current) return;
@@ -574,332 +523,54 @@ function DetailsBody({ companyName, domain, initialCategory, initialPrice, saveR
     setReminderEnabled(true);
   }
 
-  const reminderLabel =
-    reminderDays === 0
-      ? 'Same day'
-      : reminderDays === 7
-        ? '1 week before'
-        : `${reminderDays} day${reminderDays > 1 ? 's' : ''} before`;
-
   return (
-    <>
-      <ScrollView
-        style={s.scroll}
-        contentContainerStyle={s.detailsScrollContent}
-        contentInsetAdjustmentBehavior="scrollableAxes"
-        keyboardShouldPersistTaps="handled"
-        keyboardDismissMode="interactive"
-      >
-        {/* ── Hero “card”: no surface — 16 between title / price / chips; 24 logo → title ── */}
-        <View style={s.heroCard}>
-          <View style={s.heroTextColumn}>
-            <View style={s.heroStack}>
-              <View style={s.heroLogoCircle}>
-                {domain ? (
-                  <CompanyLogo domain={domain} size={HERO_SMALL_LOGO_SIZE} rounded={28} fallbackText={serviceName} />
-                ) : (
-                  <Text style={s.heroFallbackText}>
-                    {(serviceName[0] ?? '?').toUpperCase()}
-                  </Text>
-                )}
-              </View>
-              <View style={s.heroTitlePrice}>
-                <TextInput
-                  ref={nameRef}
-                  value={serviceName}
-                  onChangeText={(t) => setServiceName(t.replace(/\n/g, ' '))}
-                  placeholder="Service name"
-                  placeholderTextColor={IOS_SECONDARY}
-                  style={s.heroNameInput}
-                  autoCapitalize="words"
-                  textAlign="left"
-                  multiline
-                  scrollEnabled={false}
-                  {...(Platform.OS === 'android' ? { textAlignVertical: 'top' as const } : {})}
-                />
-                <Text style={s.heroPrice}>
-                  {CURRENCY_SYMBOLS[currency]}
-                  {price || '0.00'} / {cycleShort(billingCycle)}
-                </Text>
-              </View>
-            </View>
-          </View>
-          {/*
-            Chips sit outside heroTextColumn: horizontal ScrollView spans screen edge-to-edge
-            (negate detailsScroll cardInset only). Content uses contentPaddingX so the first
-            chip lines up with the title (36px from screen).
-          */}
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            style={s.heroChipsScroll}
-            contentContainerStyle={s.heroChipsScrollContent}
-            keyboardShouldPersistTaps="handled"
-          >
-            <MenuView
-              shouldOpenOnLongPress={false}
-              actions={ADD_SUBSCRIPTION_CURRENCIES.map((c) => ({
-                id: c,
-                title: heroCurrencyLabel(c),
-                state: currency === c ? ('on' as const) : ('off' as const),
-              }))}
-              onPressAction={({ nativeEvent }) => {
-                void hapticSelection();
-                setCurrency(nativeEvent.event as 'USD' | 'EUR' | 'GEL');
-              }}
-            >
-              <View style={s.heroChipWrap}>
-                <View style={s.heroChipPill}>
-                  <View style={s.heroChipPillInner}>
-                    <Text style={s.heroChipPillText} numberOfLines={1}>
-                      {heroCurrencyLabel(currency)}
-                    </Text>
-                    <SFIcon name="chevron.down" size={13} color={colors.textMuted} weight="semibold" />
-                  </View>
-                </View>
-              </View>
-            </MenuView>
-            <MenuView
-              shouldOpenOnLongPress={false}
-              actions={BILLING_CYCLE_OPTIONS.map((c) => ({
-                id: c,
-                title: BILLING_CYCLE_LABELS[c],
-                state: billingCycle === c ? ('on' as const) : ('off' as const),
-              }))}
-              onPressAction={({ nativeEvent }) => {
-                void hapticSelection();
-                setBillingCycle(nativeEvent.event as Subscription['billingCycle']);
-              }}
-            >
-              <View style={s.heroChipWrap}>
-                <View style={s.heroChipPill}>
-                  <View style={s.heroChipPillInner}>
-                    <Text style={s.heroChipPillText} numberOfLines={1}>
-                      {heroBillingLabel(billingCycle)}
-                    </Text>
-                    <SFIcon name="chevron.down" size={13} color={colors.textMuted} weight="semibold" />
-                  </View>
-                </View>
-              </View>
-            </MenuView>
-            <MenuView
-              shouldOpenOnLongPress={false}
-              actions={BASE_CATEGORIES.map((c) => ({
-                id: c,
-                title: c,
-                state: category === c ? ('on' as const) : ('off' as const),
-              }))}
-              onPressAction={({ nativeEvent }) => {
-                void hapticSelection();
-                setCategory(nativeEvent.event);
-              }}
-            >
-              <View style={s.heroChipWrap}>
-                <View style={s.heroChipPill}>
-                  <View style={s.heroChipPillInner}>
-                    <Text style={s.heroChipPillText} numberOfLines={1}>
-                      {category}
-                    </Text>
-                    <SFIcon name="chevron.down" size={13} color={colors.textMuted} weight="semibold" />
-                  </View>
-                </View>
-              </View>
-            </MenuView>
-          </ScrollView>
-          {isTrial ? (
-            <View style={s.heroTextColumn}>
-              <Text style={s.heroSub}>Trial · {trialLengthDays} days</Text>
-            </View>
-          ) : null}
-        </View>
-
-        {/* ── Pricing ───────────────────────────────────── */}
-        <GroupedCard>
-          <CellRow
-            label="Amount"
-            right={
-              <TextInput
-                ref={priceRef}
-                value={price ? `${CURRENCY_SYMBOLS[currency]} ${price}` : ''}
-                onChangeText={(t) => setPrice(t.replace(/[^0-9.,]/g, ''))}
-                placeholder={`${CURRENCY_SYMBOLS[currency]} 0.00`}
-                placeholderTextColor={IOS_SECONDARY}
-                keyboardType="decimal-pad"
-                style={s.amountInput}
-              />
-            }
-          />
-        </GroupedCard>
-
-        {/* ── Schedule ──────────────────────────────────── */}
-        <SectionHeader>Schedule</SectionHeader>
-        <GroupedCard>
-          <CellRow
-            label="Payment date"
-            right={
-              <DateTimePicker
-                value={nextCharge}
-                mode="date"
-                display="compact"
-                onChange={(_, selected) => {
-                  if (selected) setNextCharge(selected);
-                }}
-              />
-            }
-          />
-          <Sep />
-          <CellRow
-            label="Subscription start"
-            right={
-              <DateTimePicker
-                value={subscriptionStartDate}
-                mode="date"
-                display="compact"
-                onChange={(_, selected) => {
-                  if (selected) {
-                    subscriptionStartTouchedRef.current = true;
-                    setSubscriptionStartDate(selected);
-                  }
-                }}
-              />
-            }
-          />
-          <Sep />
-          <CellRow
-            label="Free trial"
-            right={
-              <Switch
-                value={isTrial}
-                onValueChange={setIsTrial}
-                trackColor={{ false: '#D9D9D9', true: '#30CE5A' }}
-                thumbColor={Platform.OS === 'android' ? '#ffffff' : undefined}
-              />
-            }
-          />
-          <View style={isTrial ? undefined : s.collapsed}>
-            <Sep />
-            <MenuView
-              shouldOpenOnLongPress={false}
-              actions={TRIAL_LENGTH_OPTIONS.map((opt) => ({
-                id: String(opt),
-                title: TRIAL_LENGTH_LABELS[opt],
-                state: trialLengthDays === opt ? ('on' as const) : ('off' as const),
-              }))}
-              onPressAction={({ nativeEvent }) => {
-                void hapticSelection();
-                setTrialLengthDays(Number(nativeEvent.event) as TrialLengthDays);
-              }}
-            >
-              <CellRow label="Trial length" value={TRIAL_LENGTH_LABELS[trialLengthDays]} chevron />
-            </MenuView>
-          </View>
-        </GroupedCard>
-
-        {/* ── Organization ──────────────────────────────── */}
-        <SectionHeader>Organization</SectionHeader>
-        <GroupedCard>
-          <MenuView
-            shouldOpenOnLongPress={false}
-            actions={['Personal', 'Business'].map((item) => ({
-              id: item,
-              title: item,
-              state: list === item ? ('on' as const) : ('off' as const),
-            }))}
-            onPressAction={({ nativeEvent }) => {
-              void hapticSelection();
-              setList(nativeEvent.event);
-            }}
-          >
-            <CellRow label="List" value={list} chevron />
-          </MenuView>
-          <Sep />
-          <MenuView
-            shouldOpenOnLongPress={false}
-            actions={[
-              { id: '', title: 'None', state: paymentMethod === '' ? ('on' as const) : ('off' as const) },
-              ...PAYMENT_METHODS.map((m) => ({
-                id: m,
-                title: m,
-                state: paymentMethod === m ? ('on' as const) : ('off' as const),
-              })),
-            ]}
-            onPressAction={({ nativeEvent }) => {
-              void hapticSelection();
-              setPaymentMethod(nativeEvent.event);
-            }}
-          >
-            <CellRow label="Payment method" value={paymentMethod || 'None'} chevron />
-          </MenuView>
-        </GroupedCard>
-
-        {/* ── Reminders ─────────────────────────────────── */}
-        <SectionHeader>Reminders</SectionHeader>
-        <GroupedCard>
-          <CellRow
-            label="Renewal reminders"
-            sublabel={isTrial ? 'Get notified before trial ends' : 'Get notified before renewals'}
-            right={
-              <Switch
-                value={reminderEnabled}
-                onValueChange={handleReminderToggle}
-                trackColor={{ false: '#D9D9D9', true: '#30CE5A' }}
-                thumbColor={Platform.OS === 'android' ? '#ffffff' : undefined}
-              />
-            }
-          />
-          <View style={reminderEnabled ? undefined : s.collapsed}>
-            <Sep />
-            <MenuView
-              shouldOpenOnLongPress={false}
-              actions={[
-                { id: '0', title: 'Same day', state: reminderDays === 0 ? ('on' as const) : ('off' as const) },
-                { id: '1', title: '1 day before', state: reminderDays === 1 ? ('on' as const) : ('off' as const) },
-                { id: '3', title: '3 days before', state: reminderDays === 3 ? ('on' as const) : ('off' as const) },
-                { id: '7', title: '1 week before', state: reminderDays === 7 ? ('on' as const) : ('off' as const) },
-              ]}
-              onPressAction={({ nativeEvent }) => {
-                void hapticSelection();
-                setReminderDays(Number(nativeEvent.event));
-              }}
-            >
-              <CellRow label="Notify me" value={reminderLabel} chevron />
-            </MenuView>
-            <Sep />
-            <CellRow
-              label="Time"
-              right={
-                <DateTimePicker
-                  value={parseTime(reminderTime)}
-                  mode="time"
-                  display="compact"
-                  onChange={(_, selected) => {
-                    if (selected) {
-                      const hh = String(selected.getHours()).padStart(2, '0');
-                      const mm = String(selected.getMinutes()).padStart(2, '0');
-                      setReminderTime(`${hh}:${mm}`);
-                    }
-                  }}
-                />
-              }
-            />
-          </View>
-        </GroupedCard>
-
-        <SectionHeader>Notes</SectionHeader>
-        <GroupedCard>
-          <TextInput
-            value={notes}
-            onChangeText={setNotes}
-            placeholder="Add a note…"
-            placeholderTextColor={IOS_SECONDARY}
-            style={s.nativeNotesInput}
-            multiline
-            scrollEnabled={false}
-          />
-        </GroupedCard>
-      </ScrollView>
-
-    </>
+    <ScrollView
+      style={s.scroll}
+      contentContainerStyle={s.detailsScrollContent}
+      contentInsetAdjustmentBehavior="scrollableAxes"
+      keyboardShouldPersistTaps="handled"
+      keyboardDismissMode="interactive"
+    >
+      <SubscriptionDetailsForm
+        nameRef={nameRef}
+        priceRef={priceRef}
+        serviceName={serviceName}
+        onServiceNameChange={setServiceName}
+        domain={domain}
+        price={price}
+        onPriceChange={setPrice}
+        currency={currency}
+        onCurrencyChange={setCurrency}
+        billingCycle={billingCycle}
+        onBillingCycleChange={setBillingCycle}
+        billingCycleMenuIds={BILLING_CYCLE_OPTIONS}
+        category={category}
+        onCategoryChange={setCategory}
+        customCycleDays={customCycleDays}
+        onCustomCycleDaysChange={setCustomCycleDays}
+        nextCharge={nextCharge}
+        onNextChargeChange={setNextCharge}
+        subscriptionStartDate={subscriptionStartDate}
+        onSubscriptionStartDateChange={setSubscriptionStartDate}
+        subscriptionStartTouchedRef={subscriptionStartTouchedRef}
+        isTrial={isTrial}
+        onIsTrialChange={setIsTrial}
+        trialLengthDays={trialLengthDays}
+        onTrialLengthDaysChange={setTrialLengthDays}
+        list={list}
+        onListChange={setList}
+        paymentMethod={paymentMethod}
+        onPaymentMethodChange={setPaymentMethod}
+        reminderEnabled={reminderEnabled}
+        onReminderToggle={handleReminderToggle}
+        reminderDays={reminderDays}
+        onReminderDaysChange={setReminderDays}
+        reminderTime={reminderTime}
+        onReminderTimeChange={setReminderTime}
+        notes={notes}
+        onNotesChange={setNotes}
+      />
+    </ScrollView>
   );
 }
 
@@ -914,56 +585,6 @@ function GroupedCard({ children, style }: { children: React.ReactNode; style?: o
 function SectionHeader({ children, first }: { children: string; first?: boolean }) {
   return <Text style={[s.sectionHeader, first && s.sectionHeaderFirst]}>{children}</Text>;
 }
-
-function Sep() {
-  return <View style={s.sep} />;
-}
-
-function CellRow({
-  label,
-  sublabel,
-  value,
-  right,
-  chevron,
-  onPress,
-}: {
-  label: string;
-  sublabel?: string;
-  value?: string;
-  right?: React.ReactNode;
-  chevron?: boolean;
-  onPress?: () => void;
-}) {
-  const inner = (
-    <>
-      <View style={s.cellLabelCol}>
-        <Text style={s.primaryText}>{label}</Text>
-        {sublabel ? <Text style={s.secondaryText}>{sublabel}</Text> : null}
-      </View>
-      <View style={s.cellRightCol}>
-        {value ? <Text style={s.secondaryText}>{value}</Text> : null}
-        {right}
-        {chevron && (
-          <SFIcon name="chevron.right" size={13} color={colors.textSoft} weight="semibold" />
-        )}
-      </View>
-    </>
-  );
-
-  if (onPress) {
-    return (
-      <Pressable
-        onPress={() => { void hapticSelection(); onPress(); }}
-        style={({ pressed }) => [s.row, pressed && s.rowPressed]}
-      >
-        {inner}
-      </Pressable>
-    );
-  }
-
-  return <View style={s.row}>{inner}</View>;
-}
-
 
 /* ================================================================== */
 /*  Styles                                                             */

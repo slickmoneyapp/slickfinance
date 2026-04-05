@@ -422,6 +422,7 @@ function AppInner() {
             headerShadowVisible: false,
           }}
         />
+        {/* Deprecated: editing is inline on SubscriptionDetail; screen kept for compatibility. */}
         <Stack.Screen
           name="EditSubscription"
           component={EditSubscriptionScreen}

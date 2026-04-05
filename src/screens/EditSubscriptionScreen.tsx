@@ -1,3 +1,7 @@
+/**
+ * @deprecated Normal editing is inline on `SubscriptionDetailScreen` using `SubscriptionDetailsForm`.
+ * This screen remains registered on the root stack only for backward compatibility or manual navigation.
+ */
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Alert,

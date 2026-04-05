@@ -1,48 +1,118 @@
-import React, { useLayoutEffect } from 'react';
-import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import {
+  Alert,
+  Linking,
+  Platform,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+} from 'react-native';
 import * as Haptics from 'expo-haptics';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { CompanyLogo } from '../components/CompanyLogo';
 import { TabScreenBackground } from '../components/TabScreenBackground';
 import { useSubscriptionsStore } from '../features/subscriptions/store';
 import { formatMoney } from '../features/subscriptions/calc';
+import { toLocalDateString } from '../features/subscriptions/buildBillingHistoryFromSubscription';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../../App';
-import { colors, radius, spacing } from '../ui/theme';
-import { hapticSelection } from '../ui/haptics';
+import { colors } from '../ui/theme';
+import { hapticImpactMedium, hapticSelection } from '../ui/haptics';
+import { requestNotificationPermissions } from '../features/notifications/service';
+import type { BillingCycle, CurrencyCode, Subscription } from '../features/subscriptions/types';
+import {
+  SubscriptionDetailsForm,
+  SubscriptionDetailsReadOnlySections,
+  SubscriptionDetailReadOnlyHero,
+  SubscriptionFormGroupedCard,
+  SubscriptionFormSectionHeader,
+  SubscriptionFormSep,
+  SubscriptionStatusBadge,
+  TRIAL_LENGTH_OPTIONS,
+  type TrialLengthDays,
+} from '../features/subscriptions/SubscriptionDetailsForm';
+import { subscriptionFormStyles } from '../features/subscriptions/subscriptionDetailsFormStyles';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'SubscriptionDetail'>;
 
-const CARD = colors.surface;
 const INK = colors.text;
 const DIM = colors.textMuted;
 const SEP = colors.borderSoft;
 const GREEN = colors.success;
+const SAVE_HEADER_PURPLE = '#CB30E0';
 
-const CYCLE_LABELS: Record<string, string> = {
-  weekly: 'Weekly',
-  monthly: 'Monthly',
-  quarterly: 'Quarterly',
-  yearly: 'Yearly',
-  custom: 'Custom',
+const EDIT_BILLING_CYCLES: Subscription['billingCycle'][] = [
+  'weekly',
+  'monthly',
+  'quarterly',
+  'yearly',
+  'custom',
+];
+
+function subscriptionToDraft(sub: Subscription): DraftState {
+  const priceStr =
+    sub.price % 1 === 0 ? String(sub.price) : sub.price.toFixed(2);
+  let trialLen: TrialLengthDays = 7;
+  const saved = sub.trialLengthDays;
+  if (saved != null && (TRIAL_LENGTH_OPTIONS as readonly number[]).includes(saved)) {
+    trialLen = saved as TrialLengthDays;
+  }
+  const startIso = sub.subscriptionStartDate;
+  let startDate: Date;
+  if (startIso) {
+    const [y, m, d] = startIso.split('-').map(Number);
+    startDate = new Date(y, m - 1, d, 12, 0, 0, 0);
+  } else {
+    startDate = new Date(sub.createdAt);
+  }
+  const subscriptionStartTouched =
+    Boolean(sub.subscriptionStartDate && sub.subscriptionStartDate !== toLocalDateString(new Date(sub.nextChargeDate)));
+
+  return {
+    serviceName: sub.serviceName,
+    price: priceStr,
+    currency: sub.currency,
+    billingCycle: sub.billingCycle,
+    customCycleDays: sub.customCycleDays ?? 30,
+    nextCharge: new Date(sub.nextChargeDate),
+    subscriptionStartDate: startDate,
+    isTrial: sub.isTrial,
+    trialLengthDays: trialLen,
+    list: sub.list,
+    category: sub.category,
+    paymentMethod: sub.paymentMethod?.trim() ?? '',
+    reminderEnabled: sub.reminderEnabled,
+    reminderDaysBefore: sub.reminderDaysBefore,
+    reminderTime: sub.reminderTime,
+    notes: sub.description ?? '',
+    url: sub.url ?? '',
+    subscriptionStartTouchedRefValue: subscriptionStartTouched,
+  };
+}
+
+type DraftState = {
+  serviceName: string;
+  price: string;
+  currency: CurrencyCode;
+  billingCycle: BillingCycle;
+  customCycleDays: number;
+  nextCharge: Date;
+  subscriptionStartDate: Date;
+  isTrial: boolean;
+  trialLengthDays: TrialLengthDays;
+  list: string;
+  category: string;
+  paymentMethod: string;
+  reminderEnabled: boolean;
+  reminderDaysBefore: number;
+  reminderTime: string;
+  notes: string;
+  url: string;
+  /** Snapshot for ref init when entering edit — ref object updated in screen. */
+  subscriptionStartTouchedRefValue: boolean;
 };
-
-function cycleSlash(c: string) {
-  return (
-    ({ weekly: 'wk', monthly: 'mo', quarterly: 'qtr', yearly: 'yr' } as Record<string, string>)[c] ?? c
-  );
-}
-
-function formatSubscriptionStartDate(iso: string | undefined) {
-  if (!iso) return '—';
-  const [y, m, d] = iso.split('-').map(Number);
-  if (!y || !m || !d) return '—';
-  return new Date(y, m - 1, d).toLocaleDateString('en-GB', {
-    day: 'numeric',
-    month: 'short',
-    year: 'numeric',
-  });
-}
 
 export function SubscriptionDetailScreen({ navigation, route }: Props) {
   const insets = useSafeAreaInsets();
@@ -51,35 +121,186 @@ export function SubscriptionDetailScreen({ navigation, route }: Props) {
   const update = useSubscriptionsStore((s) => s.update);
   const remove = useSubscriptionsStore((s) => s.remove);
 
+  const [mode, setMode] = useState<'view' | 'edit'>('view');
+  const [saving, setSaving] = useState(false);
+  /** Only populated while `mode === 'edit'` — view mode reads live `sub` from the store. */
+  const [editDraft, setEditDraft] = useState<DraftState | null>(null);
+
+  const nameRef = useRef<TextInput>(null);
+  const priceRef = useRef<TextInput>(null);
+  const subscriptionStartTouchedRef = useRef(false);
+
+  const enterEdit = useCallback(() => {
+    if (!sub) return;
+    void hapticSelection();
+    const d = subscriptionToDraft(sub);
+    subscriptionStartTouchedRef.current = d.subscriptionStartTouchedRefValue;
+    setEditDraft(d);
+    setMode('edit');
+  }, [sub]);
+
+  const cancelEdit = useCallback(() => {
+    if (!sub) return;
+    void hapticSelection();
+    setEditDraft(null);
+    setMode('view');
+  }, [sub]);
+
+  const saveEdit = useCallback(async () => {
+    if (!sub || !editDraft || saving) return;
+    const numPrice = Number(editDraft.price.replace(',', '.'));
+    if (!editDraft.serviceName.trim() || !Number.isFinite(numPrice) || numPrice <= 0) {
+      Alert.alert('Missing info', 'Enter a service name and a valid price.');
+      return;
+    }
+
+    setSaving(true);
+    void hapticImpactMedium();
+
+    let effectiveNextCharge = editDraft.nextCharge;
+    if (editDraft.isTrial) {
+      const trialEnd = new Date(editDraft.subscriptionStartDate.getTime());
+      trialEnd.setDate(trialEnd.getDate() + editDraft.trialLengthDays);
+      effectiveNextCharge = trialEnd;
+    }
+
+    try {
+      await update(sub.id, {
+        serviceName: editDraft.serviceName.trim(),
+        category: (editDraft.category as Subscription['category']) ?? 'Other',
+        price: numPrice,
+        currency: editDraft.currency,
+        billingCycle: editDraft.billingCycle,
+        customCycleDays: editDraft.billingCycle === 'custom' ? Math.max(1, editDraft.customCycleDays) : undefined,
+        subscriptionStartDate: toLocalDateString(editDraft.subscriptionStartDate),
+        nextChargeDate: effectiveNextCharge.toISOString(),
+        isTrial: editDraft.isTrial,
+        trialLengthDays: editDraft.isTrial ? editDraft.trialLengthDays : null,
+        status: editDraft.isTrial
+          ? 'trial'
+          : sub.status === 'cancelled'
+            ? 'cancelled'
+            : 'active',
+        list: editDraft.list,
+        paymentMethod: editDraft.paymentMethod.trim() || undefined,
+        reminderEnabled: editDraft.reminderEnabled,
+        reminderDaysBefore: editDraft.reminderDaysBefore,
+        reminderTime: editDraft.reminderTime,
+        url: editDraft.url.trim() || undefined,
+        description: editDraft.notes.trim() || undefined,
+      });
+      setEditDraft(null);
+      setMode('view');
+    } finally {
+      setSaving(false);
+    }
+  }, [sub, editDraft, saving, update]);
+
   useLayoutEffect(() => {
-    navigation.setOptions({
-      title: sub?.serviceName ?? 'Subscription',
-      headerRight: sub
-        ? () => (
-            <Pressable
-              onPress={() => {
-                void hapticSelection();
-                navigation.navigate('EditSubscription', { subscriptionId: sub.id });
-              }}
-              hitSlop={8}
-            >
-              <Text style={{ fontSize: 17, fontWeight: '600', color: INK }}>Edit</Text>
-            </Pressable>
-          )
-        : undefined,
-    });
-  }, [navigation, sub]);
+    if (!sub) {
+      navigation.setOptions({
+        title: 'Subscription',
+        headerRight: undefined,
+        headerLeft: undefined,
+      });
+      return;
+    }
+
+    if (mode === 'view') {
+      navigation.setOptions({
+        title: sub.serviceName,
+        headerBackVisible: true,
+        headerLeft: undefined,
+        headerRight: () => (
+          <Pressable
+            onPress={enterEdit}
+            hitSlop={8}
+            accessibilityRole="button"
+            accessibilityLabel="Edit subscription"
+          >
+            <Text style={headerStyles.action}>Edit</Text>
+          </Pressable>
+        ),
+      });
+    } else {
+      navigation.setOptions({
+        title: sub.serviceName,
+        headerBackVisible: false,
+        headerLeft: () => (
+          <Pressable onPress={cancelEdit} hitSlop={8} accessibilityRole="button" accessibilityLabel="Cancel editing">
+            <Text style={headerStyles.cancel}>Cancel</Text>
+          </Pressable>
+        ),
+        headerRight: () => (
+          <Pressable
+            onPress={() => {
+              void saveEdit();
+            }}
+            hitSlop={8}
+            disabled={saving}
+            accessibilityRole="button"
+            accessibilityLabel="Save changes"
+          >
+            <Text style={[headerStyles.save, saving && headerStyles.saveDisabled]}>Save</Text>
+          </Pressable>
+        ),
+      });
+    }
+  }, [navigation, sub, mode, saving, enterEdit, cancelEdit, saveEdit]);
+
+  const handleReminderToggle = useCallback(async (value: boolean) => {
+    if (!value) {
+      setEditDraft((d) => (d ? { ...d, reminderEnabled: false } : d));
+      return;
+    }
+    const granted = await requestNotificationPermissions();
+    if (!granted) {
+      Alert.alert(
+        'Enable notifications',
+        'Allow notifications to receive upcoming charge reminders.',
+        [
+          { text: 'Cancel', style: 'cancel' },
+          { text: 'Open Settings', onPress: () => Linking.openSettings() },
+        ],
+      );
+      setEditDraft((d) => (d ? { ...d, reminderEnabled: false } : d));
+      return;
+    }
+    setEditDraft((d) => (d ? { ...d, reminderEnabled: true } : d));
+  }, []);
+
+  const setDraftField = useCallback(<K extends keyof DraftState>(key: K, value: DraftState[K]) => {
+    setEditDraft((d) => (d ? { ...d, [key]: value } : d));
+  }, []);
+
+  useEffect(() => {
+    if (!editDraft || mode !== 'edit') return;
+    if (!subscriptionStartTouchedRef.current) {
+      setEditDraft((d) =>
+        d ? { ...d, subscriptionStartDate: new Date(d.nextCharge.getTime()) } : d,
+      );
+    }
+  }, [editDraft?.nextCharge, mode]);
+
+  const totalSpent = useMemo(() => {
+    if (!sub) return 0;
+    return sub.billingHistory
+      .filter((e) => e.label === 'Charged' || e.label === 'Subscribed')
+      .reduce((sum, e) => sum + e.amount, 0);
+  }, [sub]);
+
+  const subscribedDays = useMemo(() => {
+    if (!sub) return 0;
+    return Math.floor((Date.now() - new Date(sub.createdAt).getTime()) / (1000 * 60 * 60 * 24));
+  }, [sub]);
 
   if (!sub) {
     return (
       <TabScreenBackground variant="figma" edges={['left', 'right']}>
-        <View style={{ flex: 1, padding: 20, justifyContent: 'center' }}>
-          <Text style={{ color: INK }}>Subscription not found.</Text>
-          <Pressable
-            onPress={() => navigation.goBack()}
-            style={{ marginTop: 16, paddingVertical: 12 }}
-          >
-            <Text style={{ color: DIM, fontWeight: '600' }}>Go back</Text>
+        <View style={fallbackStyles.wrap}>
+          <Text style={fallbackStyles.text}>Subscription not found.</Text>
+          <Pressable onPress={() => navigation.goBack()} style={fallbackStyles.back}>
+            <Text style={fallbackStyles.backLabel}>Go back</Text>
           </Pressable>
         </View>
       </TabScreenBackground>
@@ -87,21 +308,6 @@ export function SubscriptionDetailScreen({ navigation, route }: Props) {
   }
 
   const subscription = sub;
-
-  const totalSpent = subscription.billingHistory
-    .filter((e) => e.label === 'Charged' || e.label === 'Subscribed')
-    .reduce((sum, e) => sum + e.amount, 0);
-
-  const subscribedDays = Math.floor(
-    (Date.now() - new Date(subscription.createdAt).getTime()) / (1000 * 60 * 60 * 24),
-  );
-
-  const nextDate = new Date(subscription.nextChargeDate);
-  const nextLabel = nextDate.toLocaleDateString('en-GB', {
-    day: 'numeric',
-    month: 'short',
-    year: 'numeric',
-  });
   const isCancelled = subscription.status === 'cancelled';
 
   function handleMarkCancelled() {
@@ -143,93 +349,114 @@ export function SubscriptionDetailScreen({ navigation, route }: Props) {
     );
   }
 
-  const reminderLine = subscription.reminderEnabled
-    ? `${subscription.reminderDaysBefore === 0 ? 'Same day' : `${subscription.reminderDaysBefore} day${subscription.reminderDaysBefore > 1 ? 's' : ''} before`} at ${subscription.reminderTime}`
-    : 'Off';
+  if (mode === 'edit' && !editDraft) {
+    return (
+      <TabScreenBackground variant="figma" edges={['left', 'right']}>
+        <View style={fallbackStyles.wrap}>
+          <Text style={fallbackStyles.text}>Loading…</Text>
+        </View>
+      </TabScreenBackground>
+    );
+  }
 
   return (
     <TabScreenBackground variant="figma" edges={['left', 'right']}>
-      <View style={s.root}>
+      <View style={styles.root}>
         <ScrollView
-          style={s.scroll}
-          contentContainerStyle={[s.scrollInner, { paddingBottom: Math.max(insets.bottom, 12) + 20 }]}
+          style={styles.scroll}
+          contentContainerStyle={[
+            subscriptionFormStyles.detailsScrollContent,
+            { paddingBottom: Math.max(insets.bottom, 12) + 24 },
+          ]}
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
+          keyboardDismissMode="interactive"
           contentInsetAdjustmentBehavior="automatic"
         >
-          {/* Hero — centered block */}
-          <View style={s.hero}>
-            {subscription.domain ? (
-              <CompanyLogo domain={subscription.domain} size={80} rounded={22} fallbackText={subscription.serviceName} />
-            ) : (
-              <View style={s.heroFallback}>
-                <Text style={s.heroFallbackText}>{(subscription.serviceName[0] ?? '?').toUpperCase()}</Text>
-              </View>
-            )}
-            <Text style={s.heroName}>{subscription.serviceName}</Text>
-            <Text style={s.heroPrice}>
-              {formatMoney(subscription.price, subscription.currency)} / {cycleSlash(subscription.billingCycle)}
-            </Text>
-            <Text style={s.heroSub}>
-              {subscription.isTrial
-                ? `Trial${subscription.trialLengthDays ? ` · ${subscription.trialLengthDays} days` : ''}`
-                : CYCLE_LABELS[subscription.billingCycle] ?? subscription.billingCycle}
-              {subscription.customCycleDays && subscription.billingCycle === 'custom' ? ` · ${subscription.customCycleDays} days` : ''}
-            </Text>
-            <View style={s.heroBadgeRow}>
-              <StatusBadge status={subscription.status} />
-            </View>
-          </View>
+          {mode === 'view' ? (
+            <>
+              <SubscriptionDetailReadOnlyHero
+                serviceName={subscription.serviceName}
+                domain={subscription.domain}
+                currency={subscription.currency}
+                price={subscription.price}
+                billingCycle={subscription.billingCycle}
+                customCycleDays={subscription.customCycleDays}
+                category={subscription.category}
+                isTrial={subscription.isTrial}
+                trialLengthDays={subscription.trialLengthDays}
+                statusChip={<SubscriptionStatusBadge status={subscription.status} />}
+              />
+              <SubscriptionDetailsReadOnlySections
+                price={subscription.price}
+                currency={subscription.currency}
+                billingCycle={subscription.billingCycle}
+                customCycleDays={subscription.customCycleDays}
+                subscriptionStartDate={subscription.subscriptionStartDate}
+                nextChargeDate={subscription.nextChargeDate}
+                isTrial={subscription.isTrial}
+                trialLengthDays={subscription.trialLengthDays}
+                list={subscription.list}
+                paymentMethod={subscription.paymentMethod}
+                reminderEnabled={subscription.reminderEnabled}
+                reminderDaysBefore={subscription.reminderDaysBefore}
+                reminderTime={subscription.reminderTime}
+                url={subscription.url}
+                description={subscription.description}
+                status={subscription.status}
+                totalSpent={totalSpent}
+                subscribedDays={subscribedDays}
+              />
+            </>
+          ) : editDraft ? (
+            <SubscriptionDetailsForm
+              nameRef={nameRef}
+              priceRef={priceRef}
+              serviceName={editDraft.serviceName}
+              onServiceNameChange={(v) => setDraftField('serviceName', v)}
+              domain={subscription.domain}
+              price={editDraft.price}
+              onPriceChange={(v) => setDraftField('price', v)}
+              currency={editDraft.currency}
+              onCurrencyChange={(c) => setDraftField('currency', c)}
+              billingCycle={editDraft.billingCycle}
+              onBillingCycleChange={(c) => setDraftField('billingCycle', c)}
+              billingCycleMenuIds={EDIT_BILLING_CYCLES}
+              category={editDraft.category}
+              onCategoryChange={(c) => setDraftField('category', c)}
+              customCycleDays={editDraft.customCycleDays}
+              onCustomCycleDaysChange={(n) => setDraftField('customCycleDays', n)}
+              nextCharge={editDraft.nextCharge}
+              onNextChargeChange={(d) => setDraftField('nextCharge', d)}
+              subscriptionStartDate={editDraft.subscriptionStartDate}
+              onSubscriptionStartDateChange={(d) => setDraftField('subscriptionStartDate', d)}
+              subscriptionStartTouchedRef={subscriptionStartTouchedRef}
+              isTrial={editDraft.isTrial}
+              onIsTrialChange={(v) => setDraftField('isTrial', v)}
+              trialLengthDays={editDraft.trialLengthDays}
+              onTrialLengthDaysChange={(d) => setDraftField('trialLengthDays', d)}
+              list={editDraft.list}
+              onListChange={(v) => setDraftField('list', v)}
+              paymentMethod={editDraft.paymentMethod}
+              onPaymentMethodChange={(v) => setDraftField('paymentMethod', v)}
+              reminderEnabled={editDraft.reminderEnabled}
+              onReminderToggle={handleReminderToggle}
+              reminderDays={editDraft.reminderDaysBefore}
+              onReminderDaysChange={(n) => setDraftField('reminderDaysBefore', n)}
+              reminderTime={editDraft.reminderTime}
+              onReminderTimeChange={(t) => setDraftField('reminderTime', t)}
+              notes={editDraft.notes}
+              onNotesChange={(v) => setDraftField('notes', v)}
+              url={editDraft.url}
+              onUrlChange={(v) => setDraftField('url', v)}
+            />
+          ) : null}
 
-          <Text style={s.sectionHeading}>Information</Text>
-          <View style={s.card}>
-            <Row label="Next payment" value={nextLabel} />
-            <View style={s.sep} />
-            <Row
-              label="Subscription start"
-              value={formatSubscriptionStartDate(subscription.subscriptionStartDate)}
-            />
-            <View style={s.sep} />
-            <Row label="Billing cycle" value={CYCLE_LABELS[subscription.billingCycle] ?? subscription.billingCycle} />
-            <View style={s.sep} />
-            <Row
-              label="Payment method"
-              value={subscription.paymentMethod?.trim() ? subscription.paymentMethod : '—'}
-            />
-            <View style={s.sep} />
-            <Row label="Status" value={<StatusBadge status={subscription.status} />} isComponent />
-            {subscription.isTrial && subscription.trialLengthDays != null && (
-              <>
-                <View style={s.sep} />
-                <Row label="Trial length" value={`${subscription.trialLengthDays} days`} />
-              </>
-            )}
-            <View style={s.sep} />
-            <Row label="Category" value={subscription.category} />
-            <View style={s.sep} />
-            <Row label="List" value={subscription.list} />
-            <View style={s.sep} />
-            <Row label="Total spent" value={formatMoney(totalSpent, subscription.currency)} />
-            <View style={s.sep} />
-            <Row
-              label="Subscribed"
-              value={`${subscribedDays} day${subscribedDays !== 1 ? 's' : ''}`}
-            />
-            <View style={s.sep} />
-            <Row label="Reminder" value={reminderLine} />
-            {subscription.url ? (
-              <>
-                <View style={s.sep} />
-                <Row label="Website" value={subscription.url} />
-              </>
-            ) : null}
-          </View>
-
-          <Text style={s.sectionHeading}>Billing history</Text>
-          <View style={s.card}>
+          <SubscriptionFormSectionHeader>Billing history</SubscriptionFormSectionHeader>
+          <SubscriptionFormGroupedCard>
             {subscription.billingHistory.length === 0 ? (
-              <View style={s.emptyWrap}>
-                <Text style={s.emptyText}>No billing history yet.</Text>
+              <View style={styles.emptyWrap}>
+                <Text style={styles.emptyText}>No billing history yet.</Text>
               </View>
             ) : (
               subscription.billingHistory
@@ -237,12 +464,12 @@ export function SubscriptionDetailScreen({ navigation, route }: Props) {
                 .reverse()
                 .map((entry, idx) => (
                   <View key={entry.id}>
-                    {idx !== 0 && <View style={s.sep} />}
-                    <View style={s.historyRow}>
-                      <View style={s.historyDot} />
+                    {idx !== 0 ? <SubscriptionFormSep /> : null}
+                    <View style={styles.historyRow}>
+                      <View style={styles.historyDot} />
                       <View style={{ flex: 1 }}>
-                        <Text style={s.historyLabel}>{entry.label}</Text>
-                        <Text style={s.historyDate}>
+                        <Text style={styles.historyLabel}>{entry.label}</Text>
+                        <Text style={styles.historyDate}>
                           {new Date(entry.date).toLocaleDateString('en-GB', {
                             day: 'numeric',
                             month: 'short',
@@ -250,173 +477,65 @@ export function SubscriptionDetailScreen({ navigation, route }: Props) {
                           })}
                         </Text>
                       </View>
-                      <Text style={s.historyAmount}>{formatMoney(entry.amount, entry.currency)}</Text>
+                      <Text style={styles.historyAmount}>{formatMoney(entry.amount, entry.currency)}</Text>
                     </View>
                   </View>
                 ))
             )}
-          </View>
+          </SubscriptionFormGroupedCard>
 
-          {subscription.description ? (
+          {mode === 'view' ? (
             <>
-              <Text style={s.sectionHeading}>Notes</Text>
-              <View style={[s.card, s.notesCard]}>
-                <Text style={s.notesText}>{subscription.description}</Text>
-              </View>
+              <Pressable
+                onPress={handleMarkCancelled}
+                style={({ pressed }) => [
+                  styles.actionBtn,
+                  isCancelled ? styles.reactivateBtn : styles.cancelBtn,
+                  pressed && styles.pressed,
+                ]}
+              >
+                <Text style={[styles.actionBtnText, isCancelled && { color: GREEN }]}>
+                  {isCancelled ? 'Mark as Active' : 'Mark as Cancelled'}
+                </Text>
+              </Pressable>
+
+              <Pressable onPress={handleDelete} style={({ pressed }) => [styles.deleteLink, pressed && styles.pressed]}>
+                <Text style={styles.deleteLinkText}>Delete subscription</Text>
+              </Pressable>
             </>
           ) : null}
-
-          <Pressable
-            onPress={handleMarkCancelled}
-            style={({ pressed }) => [
-              s.actionBtn,
-              isCancelled ? s.reactivateBtn : s.cancelBtn,
-              pressed && s.pressed,
-            ]}
-          >
-            <Text style={[s.actionBtnText, isCancelled && { color: GREEN }]}>
-              {isCancelled ? 'Mark as Active' : 'Mark as Cancelled'}
-            </Text>
-          </Pressable>
-
-          <Pressable onPress={handleDelete} style={({ pressed }) => [s.deleteLink, pressed && s.pressed]}>
-            <Text style={s.deleteLinkText}>Delete subscription</Text>
-          </Pressable>
         </ScrollView>
       </View>
     </TabScreenBackground>
   );
 }
 
-function Row({
-  label,
-  value,
-  isComponent,
-}: {
-  label: string;
-  value: React.ReactNode;
-  isComponent?: boolean;
-}) {
-  return (
-    <View style={s.detailRow}>
-      <Text style={s.detailLabel}>{label}</Text>
-      {isComponent ? (
-        <View style={s.detailValueWrap}>{value}</View>
-      ) : (
-        <Text style={s.detailValue} numberOfLines={3}>
-          {value}
-        </Text>
-      )}
-    </View>
-  );
-}
+const headerStyles = StyleSheet.create({
+  action: { fontSize: 17, fontWeight: '600', color: INK },
+  cancel: { fontSize: 17, fontWeight: '400', color: Platform.OS === 'ios' ? '#007AFF' : INK },
+  save: { fontSize: 17, fontWeight: '600', color: SAVE_HEADER_PURPLE },
+  saveDisabled: { opacity: 0.45 },
+});
 
-function StatusBadge({ status }: { status: string }) {
-  const configs: Record<string, { bg: string; color: string; label: string }> = {
-    active: { bg: '#E8F9EE', color: '#1B8A3C', label: 'Active' },
-    trial: { bg: '#EEE6FF', color: '#6B3FBC', label: 'Trial' },
-    paused: { bg: '#FFF3E0', color: '#B05E00', label: 'Paused' },
-    cancelled: { bg: 'rgba(11,8,3,0.07)', color: DIM, label: 'Cancelled' },
-  };
-  const c = configs[status] ?? configs.cancelled;
-  return (
-    <View style={[s.badge, { backgroundColor: c.bg }]}>
-      <Text style={[s.badgeText, { color: c.color }]}>{c.label}</Text>
-    </View>
-  );
-}
+const fallbackStyles = StyleSheet.create({
+  wrap: { flex: 1, padding: 20, justifyContent: 'center' },
+  text: { color: INK },
+  back: { marginTop: 16, paddingVertical: 12 },
+  backLabel: { color: DIM, fontWeight: '600' },
+});
 
-const s = StyleSheet.create({
+const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: 'transparent' },
-  pressed: { opacity: 0.75 },
   scroll: { flex: 1 },
-  scrollInner: { paddingHorizontal: spacing.screenX },
+  pressed: { opacity: 0.75 },
 
-  hero: {
-    alignItems: 'center',
-    paddingTop: 8,
-    paddingBottom: 24,
-  },
-  heroFallback: {
-    width: 80,
-    height: 80,
-    borderRadius: 22,
-    backgroundColor: CARD,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  heroFallbackText: { fontSize: 28, fontWeight: '800', color: INK },
-  heroName: {
-    marginTop: 16,
-    fontSize: 28,
-    fontWeight: '800',
-    color: INK,
-    textAlign: 'center',
-  },
-  heroPrice: {
-    marginTop: 8,
-    fontSize: 20,
-    fontWeight: '600',
-    color: INK,
-    textAlign: 'center',
-  },
-  heroSub: {
-    marginTop: 6,
-    fontSize: 14,
-    fontWeight: '500',
-    color: DIM,
-    textAlign: 'center',
-  },
-  heroBadgeRow: { marginTop: 12 },
-
-  sectionHeading: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: INK,
-    marginBottom: 10,
-    marginTop: 8,
-  },
-
-  card: {
-    backgroundColor: CARD,
-    borderRadius: radius.card,
-    marginBottom: 20,
-  },
-  sep: { height: StyleSheet.hairlineWidth, backgroundColor: SEP, marginHorizontal: 16 },
-
-  detailRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-    gap: 12,
-  },
-  detailLabel: {
-    fontSize: 15,
-    fontWeight: '500',
-    color: DIM,
-    flexShrink: 0,
-  },
-  detailValue: {
-    flex: 1,
-    fontSize: 15,
-    fontWeight: '600',
-    color: INK,
-    textAlign: 'right',
-  },
-  detailValueWrap: {
-    flex: 1,
-    alignItems: 'flex-end',
-  },
-
-  badge: { paddingVertical: 4, paddingHorizontal: 10, borderRadius: 999 },
-  badgeText: { fontSize: 12, fontWeight: '700' },
+  emptyWrap: { paddingHorizontal: 20, paddingVertical: 18 },
+  emptyText: { fontSize: 14, color: DIM },
 
   historyRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 16,
+    paddingHorizontal: 20,
     paddingVertical: 14,
     gap: 12,
   },
@@ -429,11 +548,6 @@ const s = StyleSheet.create({
   historyLabel: { fontSize: 14, fontWeight: '600', color: INK },
   historyDate: { fontSize: 12, color: DIM, marginTop: 2 },
   historyAmount: { fontSize: 15, fontWeight: '700', color: INK },
-  emptyWrap: { paddingHorizontal: 16, paddingVertical: 18 },
-  emptyText: { fontSize: 14, color: DIM },
-
-  notesCard: { paddingHorizontal: 16, paddingVertical: 14 },
-  notesText: { fontSize: 14, color: INK, lineHeight: 20 },
 
   actionBtn: {
     marginTop: 8,
@@ -446,6 +560,5 @@ const s = StyleSheet.create({
   reactivateBtn: { backgroundColor: '#E8F9EE' },
   actionBtnText: { fontSize: 16, fontWeight: '700', color: INK },
   deleteLink: { marginTop: 14, alignItems: 'center', paddingVertical: 10 },
-  /** Destructive — matches iOS destructive / common “delete” red */
   deleteLinkText: { fontSize: 15, fontWeight: '600', color: '#E53935' },
 });

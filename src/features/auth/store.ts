@@ -8,9 +8,12 @@ type AuthState = {
   initialized: boolean;
   loading: boolean;
   currentProvider: 'apple' | 'google' | null;
+  /** Next `LoginScreen` mount skips hero splash (set when user signs out). */
+  skipLoginSplashOnce: boolean;
 
   initialize: () => () => void;
   setCurrentProvider: (provider: 'apple' | 'google') => void;
+  consumeLoginSplashSkip: () => void;
   signOut: () => Promise<void>;
 };
 
@@ -20,6 +23,7 @@ export const useAuthStore = create<AuthState>()((set) => ({
   initialized: false,
   loading: true,
   currentProvider: null,
+  skipLoginSplashOnce: false,
 
   initialize: () => {
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -35,9 +39,16 @@ export const useAuthStore = create<AuthState>()((set) => ({
 
   setCurrentProvider: (provider) => set({ currentProvider: provider }),
 
+  consumeLoginSplashSkip: () => set({ skipLoginSplashOnce: false }),
+
   signOut: async () => {
-    set({ loading: true });
+    set({ loading: true, skipLoginSplashOnce: true });
     await supabase.auth.signOut();
-    set({ session: null, user: null, loading: false, currentProvider: null });
+    set({
+      session: null,
+      user: null,
+      loading: false,
+      currentProvider: null,
+    });
   },
 }));

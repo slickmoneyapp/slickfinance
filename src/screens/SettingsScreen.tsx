@@ -20,6 +20,7 @@ import { SFIcon } from '../components/SFIcon';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import * as Notifications from 'expo-notifications';
 import * as Haptics from 'expo-haptics';
+import { PRIVACY_URL, TERMS_URL } from '../constants/legalUrls';
 import { hapticSelection } from '../ui/haptics';
 import { colors, figma, spacing } from '../ui/theme';
 import { useAuthStore } from '../features/auth/store';
@@ -37,8 +38,6 @@ function parseTime(hhmm: string): Date {
 }
 
 const SUPPORT_EMAIL = 'info@slickmoney.app';
-const PRIVACY_URL = 'https://slickmoney.app/privacy';
-const TERMS_URL = 'https://slickmoney.app/terms';
 const APP_STORE_URL = 'https://apps.apple.com/app/slick-money/id6745404495';
 const SHARE_URL = 'https://apps.apple.com/app/slick-money/id6745404495';
 
