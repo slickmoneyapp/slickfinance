@@ -197,11 +197,11 @@ export const figma = {
       lineHeight: 19,
       color: '#000000',
     },
-    /** "$2820/year" — TEXT 273:1543: Medium 16, line ~19 */
+    /** "$2820/year" — aligned with Invest `monthlyLabel`: Semibold 16 */
     spendingYearly: {
       fontSize: 16,
-      fontWeight: '500' as const,
-      lineHeight: 19,
+      fontWeight: '600' as const,
+      lineHeight: 20,
       color: '#616161',
     },
     /** Filter / Calendar View — TEXT 273:1701: Semibold 14, line ~16.7 */

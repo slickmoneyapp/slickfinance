@@ -25,13 +25,14 @@ import { toLocalDateString } from '../features/subscriptions/buildBillingHistory
 import { useSubscriptionsStore } from '../features/subscriptions/store';
 import { requestNotificationPermissions } from '../features/notifications/service';
 import { searchBrands, type BrandResult } from '../utils/brandSearch';
-import { colors, spacing } from '../ui/theme';
+import { colors, figma, spacing } from '../ui/theme';
 import type { Subscription } from '../features/subscriptions/types';
 import {
   ADD_SUBSCRIPTION_CURRENCIES,
   BASE_CATEGORIES,
   BILLING_CYCLE_LABELS,
   BILLING_CYCLE_OPTIONS,
+  BILLING_CYCLE_SHORT_LABELS,
   CURRENCY_SYMBOLS,
   POPULAR_SERVICES_BY_SECTION,
   type ServiceTemplate,
@@ -72,6 +73,17 @@ const IOS_ROW_HIGHLIGHT = iosDynamic(
   'rgba(120, 120, 128, 0.12)',
   'rgba(118, 118, 128, 0.24)',
 );
+
+const androidTextFix =
+  Platform.OS === 'android' ? ({ includeFontPadding: false } as const) : {};
+
+function heroCurrencyLabel(c: 'USD' | 'EUR' | 'GEL'): string {
+  return c;
+}
+
+function heroBillingLabel(cycle: Subscription['billingCycle']): string {
+  return BILLING_CYCLE_SHORT_LABELS[cycle];
+}
 
 /* ------------------------------------------------------------------ */
 /*  Types                                                              */
@@ -131,6 +143,7 @@ function formatStartingPrice(price: number): string {
   return `${formatted}/m`;
 }
 
+const HERO_SMALL_LOGO_SIZE = 56;
 
 /* ================================================================== */
 /*  Flow Navigator                                                     */
@@ -577,34 +590,127 @@ function DetailsBody({ companyName, domain, initialCategory, initialPrice, saveR
         keyboardShouldPersistTaps="handled"
         keyboardDismissMode="interactive"
       >
-        {/* ── Hero (matches SubscriptionDetailScreen) ──── */}
-        <View style={s.hero}>
-          <View style={s.heroLogoCircle}>
-            {domain ? (
-              <CompanyLogo domain={domain} size={56} rounded={28} fallbackText={serviceName} />
-            ) : (
-              <Text style={s.heroFallbackText}>
-                {(serviceName[0] ?? '?').toUpperCase()}
-              </Text>
-            )}
+        {/* ── Hero “card”: no surface — 16 between title / price / chips; 24 logo → title ── */}
+        <View style={s.heroCard}>
+          <View style={s.heroTextColumn}>
+            <View style={s.heroStack}>
+              <View style={s.heroLogoCircle}>
+                {domain ? (
+                  <CompanyLogo domain={domain} size={HERO_SMALL_LOGO_SIZE} rounded={28} fallbackText={serviceName} />
+                ) : (
+                  <Text style={s.heroFallbackText}>
+                    {(serviceName[0] ?? '?').toUpperCase()}
+                  </Text>
+                )}
+              </View>
+              <View style={s.heroTitlePrice}>
+                <TextInput
+                  ref={nameRef}
+                  value={serviceName}
+                  onChangeText={(t) => setServiceName(t.replace(/\n/g, ' '))}
+                  placeholder="Service name"
+                  placeholderTextColor={IOS_SECONDARY}
+                  style={s.heroNameInput}
+                  autoCapitalize="words"
+                  textAlign="left"
+                  multiline
+                  scrollEnabled={false}
+                  {...(Platform.OS === 'android' ? { textAlignVertical: 'top' as const } : {})}
+                />
+                <Text style={s.heroPrice}>
+                  {CURRENCY_SYMBOLS[currency]}
+                  {price || '0.00'} / {cycleShort(billingCycle)}
+                </Text>
+              </View>
+            </View>
           </View>
-          <TextInput
-            ref={nameRef}
-            value={serviceName}
-            onChangeText={setServiceName}
-            placeholder="Service name"
-            placeholderTextColor={IOS_SECONDARY}
-            style={s.heroNameInput}
-            autoCapitalize="words"
-            textAlign="center"
-          />
-          <Text style={s.heroPrice}>
-            {CURRENCY_SYMBOLS[currency]}
-            {price || '0.00'} / {cycleShort(billingCycle)}
-          </Text>
-          <Text style={s.heroSub}>
-            {isTrial ? `Trial · ${trialLengthDays} days` : BILLING_CYCLE_LABELS[billingCycle]}
-          </Text>
+          {/*
+            Chips sit outside heroTextColumn: horizontal ScrollView spans screen edge-to-edge
+            (negate detailsScroll cardInset only). Content uses contentPaddingX so the first
+            chip lines up with the title (36px from screen).
+          */}
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            style={s.heroChipsScroll}
+            contentContainerStyle={s.heroChipsScrollContent}
+            keyboardShouldPersistTaps="handled"
+          >
+            <MenuView
+              shouldOpenOnLongPress={false}
+              actions={ADD_SUBSCRIPTION_CURRENCIES.map((c) => ({
+                id: c,
+                title: heroCurrencyLabel(c),
+                state: currency === c ? ('on' as const) : ('off' as const),
+              }))}
+              onPressAction={({ nativeEvent }) => {
+                void hapticSelection();
+                setCurrency(nativeEvent.event as 'USD' | 'EUR' | 'GEL');
+              }}
+            >
+              <View style={s.heroChipWrap}>
+                <View style={s.heroChipPill}>
+                  <View style={s.heroChipPillInner}>
+                    <Text style={s.heroChipPillText} numberOfLines={1}>
+                      {heroCurrencyLabel(currency)}
+                    </Text>
+                    <SFIcon name="chevron.down" size={13} color={colors.textMuted} weight="semibold" />
+                  </View>
+                </View>
+              </View>
+            </MenuView>
+            <MenuView
+              shouldOpenOnLongPress={false}
+              actions={BILLING_CYCLE_OPTIONS.map((c) => ({
+                id: c,
+                title: BILLING_CYCLE_LABELS[c],
+                state: billingCycle === c ? ('on' as const) : ('off' as const),
+              }))}
+              onPressAction={({ nativeEvent }) => {
+                void hapticSelection();
+                setBillingCycle(nativeEvent.event as Subscription['billingCycle']);
+              }}
+            >
+              <View style={s.heroChipWrap}>
+                <View style={s.heroChipPill}>
+                  <View style={s.heroChipPillInner}>
+                    <Text style={s.heroChipPillText} numberOfLines={1}>
+                      {heroBillingLabel(billingCycle)}
+                    </Text>
+                    <SFIcon name="chevron.down" size={13} color={colors.textMuted} weight="semibold" />
+                  </View>
+                </View>
+              </View>
+            </MenuView>
+            <MenuView
+              shouldOpenOnLongPress={false}
+              actions={BASE_CATEGORIES.map((c) => ({
+                id: c,
+                title: c,
+                state: category === c ? ('on' as const) : ('off' as const),
+              }))}
+              onPressAction={({ nativeEvent }) => {
+                void hapticSelection();
+                setCategory(nativeEvent.event);
+              }}
+            >
+              <View style={s.heroChipWrap}>
+                <View style={s.heroChipPill}>
+                  <View style={s.heroChipPillInner}>
+                    <Text style={s.heroChipPillText} numberOfLines={1}>
+                      {category}
+                    </Text>
+                    <SFIcon name="chevron.down" size={13} color={colors.textMuted} weight="semibold" />
+                  </View>
+                </View>
+              </View>
+            </MenuView>
+          </ScrollView>
+          {isTrial ? (
+            <View style={s.heroTextColumn}>
+              <Text style={s.heroSub}>Trial · {trialLengthDays} days</Text>
+            </View>
+          ) : null}
         </View>
 
         {/* ── Pricing ───────────────────────────────────── */}
@@ -623,21 +729,6 @@ function DetailsBody({ companyName, domain, initialCategory, initialPrice, saveR
               />
             }
           />
-          <Sep />
-          <MenuView
-            shouldOpenOnLongPress={false}
-            actions={ADD_SUBSCRIPTION_CURRENCIES.map((c) => ({
-              id: c,
-              title: `${c} (${CURRENCY_SYMBOLS[c]})`,
-              state: currency === c ? ('on' as const) : ('off' as const),
-            }))}
-            onPressAction={({ nativeEvent }) => {
-              void hapticSelection();
-              setCurrency(nativeEvent.event as 'USD' | 'EUR' | 'GEL');
-            }}
-          >
-            <CellRow label="Currency" value={`${currency} (${CURRENCY_SYMBOLS[currency]})`} chevron />
-          </MenuView>
         </GroupedCard>
 
         {/* ── Schedule ──────────────────────────────────── */}
@@ -673,21 +764,6 @@ function DetailsBody({ companyName, domain, initialCategory, initialPrice, saveR
               />
             }
           />
-          <Sep />
-          <MenuView
-            shouldOpenOnLongPress={false}
-            actions={BILLING_CYCLE_OPTIONS.map((c) => ({
-              id: c,
-              title: BILLING_CYCLE_LABELS[c],
-              state: billingCycle === c ? ('on' as const) : ('off' as const),
-            }))}
-            onPressAction={({ nativeEvent }) => {
-              void hapticSelection();
-              setBillingCycle(nativeEvent.event as Subscription['billingCycle']);
-            }}
-          >
-            <CellRow label="Billing cycle" value={BILLING_CYCLE_LABELS[billingCycle]} chevron />
-          </MenuView>
           <Sep />
           <CellRow
             label="Free trial"
@@ -735,21 +811,6 @@ function DetailsBody({ companyName, domain, initialCategory, initialPrice, saveR
             }}
           >
             <CellRow label="List" value={list} chevron />
-          </MenuView>
-          <Sep />
-          <MenuView
-            shouldOpenOnLongPress={false}
-            actions={BASE_CATEGORIES.map((c) => ({
-              id: c,
-              title: c,
-              state: category === c ? ('on' as const) : ('off' as const),
-            }))}
-            onPressAction={({ nativeEvent }) => {
-              void hapticSelection();
-              setCategory(nativeEvent.event);
-            }}
-          >
-            <CellRow label="Category" value={category} chevron />
           </MenuView>
           <Sep />
           <MenuView
@@ -912,15 +973,66 @@ const s = StyleSheet.create({
   /* ── Shared layout ─────────────────────────────────── */
   scroll: { flex: 1 },
   scrollContent: {
-    paddingHorizontal: 16,
+    paddingHorizontal: spacing.screenX,
     paddingTop: 4,
     paddingBottom: 40,
     flexGrow: 1,
   },
   detailsScrollContent: {
-    paddingHorizontal: 16,
+    paddingHorizontal: figma.subscriptions273.cardInsetX,
     paddingTop: 4,
     paddingBottom: 200,
+  },
+  /**
+   * Logical hero group (no card chrome): 16px between title, price, chip row, trial; 24px bottom before Amount.
+   */
+  heroCard: {
+    alignSelf: 'stretch',
+    gap: 16,
+    paddingBottom: 24,
+  },
+  /**
+   * Bleed past detailsScroll `cardInsetX` so the chip track is full screen width; content
+   * insets use `contentPaddingX` (36) so the first chip matches the big title column.
+   */
+  heroChipsScroll: {
+    alignSelf: 'stretch',
+    minHeight: 48,
+    marginHorizontal: -figma.subscriptions273.cardInsetX,
+  },
+  heroChipsScrollContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingLeft: figma.subscriptions273.contentPaddingX,
+    paddingRight: figma.subscriptions273.contentPaddingX,
+  },
+  heroChipWrap: {
+    flexShrink: 0,
+  },
+  heroChipPill: {
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 30,
+    borderWidth: 0,
+    backgroundColor: IOS_CARD_BG,
+  },
+  heroChipPillInner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  heroChipPillText: {
+    fontSize: 14,
+    fontWeight: '600',
+    lineHeight: 17,
+    color: '#616161',
+    ...androidTextFix,
+  },
+  /** Matches SubscriptionsScreen `figmaTextColumn`: 16 + 20 = 36px from screen edge for hero copy */
+  heroTextColumn: {
+    paddingHorizontal: figma.subscriptions273.textColumnGutterX,
+    alignSelf: 'stretch',
   },
   collapsed: {
     height: 0,
@@ -928,7 +1040,7 @@ const s = StyleSheet.create({
     opacity: 0,
   },
   pickerContent: {
-    paddingHorizontal: 16,
+    paddingHorizontal: spacing.screenX,
     paddingBottom: 40,
     flexGrow: 1,
   },
@@ -978,11 +1090,15 @@ const s = StyleSheet.create({
     marginTop: 8,
   },
 
-  /* ── Hero (matches SubscriptionDetailScreen) ───────── */
-  hero: {
-    alignItems: 'center',
-    paddingTop: 20,
-    paddingBottom: 32,
+  /** Logo → title+price block (24); title ↔ price use `heroTitlePrice` */
+  heroStack: {
+    alignItems: 'flex-start',
+    alignSelf: 'stretch',
+    gap: 24,
+  },
+  heroTitlePrice: {
+    alignSelf: 'stretch',
+    gap: 16,
   },
   heroLogoCircle: {
     width: 96,
@@ -1001,29 +1117,31 @@ const s = StyleSheet.create({
     color: IOS_PRIMARY,
   },
   heroNameInput: {
-    marginTop: 20,
     fontFamily: 'BricolageGrotesque_800ExtraBold',
     fontSize: 34,
     lineHeight: 42,
     color: '#000',
-    textAlign: 'center',
+    textAlign: 'left',
     width: '100%',
-    paddingHorizontal: 20,
-    paddingVertical: 0,
+    alignSelf: 'stretch',
+    minHeight: 42,
+    paddingHorizontal: 0,
+    paddingTop: 0,
+    paddingBottom: 0,
   },
   heroPrice: {
-    marginTop: 12,
     fontSize: 20,
     fontWeight: '600',
     color: IOS_PRIMARY,
-    textAlign: 'center',
+    textAlign: 'left',
+    alignSelf: 'stretch',
   },
   heroSub: {
-    marginTop: 8,
     fontSize: 14,
     fontWeight: '500',
     color: IOS_SECONDARY,
-    textAlign: 'center',
+    textAlign: 'left',
+    alignSelf: 'stretch',
   },
 
   /* ── Details form custom inputs ────────────────────── */
@@ -1049,7 +1167,7 @@ const s = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 14,
-    paddingHorizontal: 16,
+    paddingHorizontal: spacing.screenX,
     paddingVertical: 16,
   },
   logoCircle: {

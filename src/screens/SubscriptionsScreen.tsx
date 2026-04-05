@@ -417,7 +417,7 @@ const s = StyleSheet.create({
     flexShrink: 1,
     maxWidth: '100%',
   },
-  /** Same 14 / medium as yearly line */
+  /** MoM pill — 14 / medium (yearly line uses Invest-style 16 / semibold) */
   momPillText: {
     fontFamily: 'SF Pro Display',
     fontSize: 14,
@@ -432,11 +432,12 @@ const s = StyleSheet.create({
   momPillTextNeutral: { color: NEUTRAL_PILL_TEXT },
   momPillSame: { backgroundColor: SAME_PILL_BG },
   momPillTextSame: { color: RED_PILL_TEXT },
+  /** Matches InvestScreen `monthlyLabel` (Monthly investment) */
   spendingYearly: {
     fontFamily: 'SF Pro Display',
-    fontSize: 14,
-    fontWeight: '500',
-    lineHeight: 18,
+    fontSize: 16,
+    fontWeight: '600',
+    lineHeight: 20,
     color: '#616161',
     textAlign: 'left',
     alignSelf: 'stretch',

@@ -84,6 +84,15 @@ export const BILLING_CYCLE_LABELS: Record<string, string> = {
   yearly: 'Every year',
 };
 
+/** Short labels for filter-style pills (Subscriptions + add-details chips). */
+export const BILLING_CYCLE_SHORT_LABELS: Record<Subscription['billingCycle'], string> = {
+  weekly: 'Weekly',
+  monthly: 'Monthly',
+  quarterly: 'Quarterly',
+  yearly: 'Yearly',
+  custom: 'Custom',
+};
+
 export const ADD_SUBSCRIPTION_CURRENCIES: readonly CurrencyCode[] = ['USD', 'EUR', 'GEL'];
 
 export const CURRENCY_SYMBOLS: Record<string, string> = { USD: '$', EUR: '€', GEL: '₾' };
