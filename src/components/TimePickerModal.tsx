@@ -7,7 +7,7 @@ import {
   Text,
   View,
 } from 'react-native';
-import DateTimePicker from '@react-native-community/datetimepicker';
+import { AppDateTimePicker } from './AppDateTimePicker';
 import { colors, radius } from '../ui/theme';
 import { hapticSelection } from '../ui/haptics';
 
@@ -46,7 +46,7 @@ export function TimePickerModal({ visible, value, onClose, onSelect, title = 'Re
   if (Platform.OS === 'android') {
     if (!visible) return null;
     return (
-      <DateTimePicker
+      <AppDateTimePicker
         value={date}
         mode="time"
         is24Hour
@@ -74,7 +74,7 @@ export function TimePickerModal({ visible, value, onClose, onSelect, title = 'Re
               <Text style={styles.closeText}>Close</Text>
             </Pressable>
           </View>
-          <DateTimePicker
+          <AppDateTimePicker
             value={date}
             mode="time"
             display="spinner"

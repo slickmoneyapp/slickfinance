@@ -17,7 +17,7 @@ import {
 import { LinearGradient } from 'expo-linear-gradient';
 import { useNavigation } from '@react-navigation/native';
 import { SFIcon } from '../components/SFIcon';
-import DateTimePicker from '@react-native-community/datetimepicker';
+import { AppDateTimePicker } from '../components/AppDateTimePicker';
 import * as Notifications from 'expo-notifications';
 import * as Haptics from 'expo-haptics';
 import { PRIVACY_URL, TERMS_URL } from '../constants/legalUrls';
@@ -220,7 +220,7 @@ export function SettingsScreen() {
             label="Reminder Timing"
             sublabel="Choose reminder time"
             right={
-              <DateTimePicker
+              <AppDateTimePicker
                 value={parseTime(reminderTime)}
                 mode="time"
                 display="compact"

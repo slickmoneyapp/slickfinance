@@ -18,7 +18,11 @@ import {
 import { SFIcon } from '../components/SFIcon';
 import { CompanyLogo } from '../components/CompanyLogo';
 import { hapticImpactMedium } from '../ui/haptics';
-import { toLocalDateString } from '../features/subscriptions/buildBillingHistoryFromSubscription';
+import {
+  defaultNextChargeAfterStart,
+  defaultSubscriptionStartDate,
+  toLocalDateString,
+} from '../features/subscriptions/buildBillingHistoryFromSubscription';
 import { useSubscriptionsStore } from '../features/subscriptions/store';
 import { requestNotificationPermissions } from '../features/notifications/service';
 import { searchBrands, type BrandResult } from '../utils/brandSearch';
@@ -430,17 +434,12 @@ function DetailsBody({ companyName, domain, initialCategory, initialPrice, saveR
   const [currency, setCurrency] = useState<'USD' | 'EUR' | 'GEL'>('USD');
   const [billingCycle, setBillingCycle] = useState<Subscription['billingCycle']>('monthly');
   const [customCycleDays, setCustomCycleDays] = useState(30);
-  const [nextCharge, setNextCharge] = useState<Date>(() => {
-    const d = new Date();
-    d.setDate(d.getDate() + 30);
-    return d;
-  });
-  const [subscriptionStartDate, setSubscriptionStartDate] = useState<Date>(() => {
-    const d = new Date();
-    d.setDate(d.getDate() + 30);
-    return d;
-  });
+  const [subscriptionStartDate, setSubscriptionStartDate] = useState<Date>(() => defaultSubscriptionStartDate());
+  const [nextCharge, setNextCharge] = useState<Date>(() =>
+    defaultNextChargeAfterStart(defaultSubscriptionStartDate(), 'monthly', 30),
+  );
   const subscriptionStartTouchedRef = useRef(false);
+  const nextChargeTouchedRef = useRef(false);
   const [isTrial, setIsTrial] = useState(false);
   const [trialLengthDays, setTrialLengthDays] = useState<TrialLengthDays>(7);
   const [list, setList] = useState('Personal');
@@ -458,10 +457,9 @@ function DetailsBody({ companyName, domain, initialCategory, initialPrice, saveR
   }, [companyName]);
 
   useEffect(() => {
-    if (!subscriptionStartTouchedRef.current) {
-      setSubscriptionStartDate(new Date(nextCharge.getTime()));
-    }
-  }, [nextCharge]);
+    if (nextChargeTouchedRef.current) return;
+    setNextCharge(defaultNextChargeAfterStart(subscriptionStartDate, billingCycle, customCycleDays));
+  }, [subscriptionStartDate, billingCycle, customCycleDays]);
 
   saveRef.current = async () => {
     if (savingRef.current) return;
@@ -553,6 +551,7 @@ function DetailsBody({ companyName, domain, initialCategory, initialPrice, saveR
         subscriptionStartDate={subscriptionStartDate}
         onSubscriptionStartDateChange={setSubscriptionStartDate}
         subscriptionStartTouchedRef={subscriptionStartTouchedRef}
+        nextChargeTouchedRef={nextChargeTouchedRef}
         isTrial={isTrial}
         onIsTrialChange={setIsTrial}
         trialLengthDays={trialLengthDays}

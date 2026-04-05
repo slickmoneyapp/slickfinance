@@ -81,41 +81,50 @@ const MONTHS_SHORT = [
   'Dec',
 ] as const;
 
+/** Avoid 4-digit “+3149%” in the pill — cap the displayed number. */
+const MOM_PCT_CAP = 999;
+
+function formatUpPct(pctUp: number, prevMon: string): string {
+  const n = Math.min(pctUp, MOM_PCT_CAP);
+  return `+${n}% vs ${prevMon}`;
+}
+
 /**
- * Compares **actual** billed totals (billing history) for this calendar month vs the previous month.
+ * Compares **actual** billed totals (billing history) for this calendar month vs the previous calendar month.
  * Green = spending went down, red = up, neutral = flat / no prior data to compare.
+ * Short labels with %, e.g. `+12% vs Mar`, `-30% vs Mar`.
  */
 export function getMonthOverMonthSpendPill(subs: Subscription[], now: Date = new Date()): MonthOverMonthPill | null {
   const cy = now.getFullYear();
   const cm = now.getMonth();
-  const prev = new Date(cy, cm - 1, 1);
-  const py = prev.getFullYear();
-  const pm = prev.getMonth();
+  const py = new Date(cy, cm - 1, 1).getFullYear();
+  const pm = new Date(cy, cm - 1, 1).getMonth();
+  const prevMon = MONTHS_SHORT[pm];
 
   const curr = sumChargesInCalendarMonth(subs, cy, cm);
   const prevTotal = sumChargesInCalendarMonth(subs, py, pm);
 
-  const prevLabel = MONTHS_SHORT[pm];
-
   if (curr === 0 && prevTotal === 0) return null;
 
   if (prevTotal === 0 && curr > 0) {
-    return { tone: 'neutral', label: `New vs ${prevLabel}` };
+    return { tone: 'neutral', label: `New vs ${prevMon}` };
   }
 
   if (prevTotal > 0 && curr === 0) {
-    return { tone: 'green', label: `100% less vs ${prevLabel}` };
+    return { tone: 'green', label: `-100% vs ${prevMon}` };
   }
 
   const diff = curr - prevTotal;
   const pct = Math.round((Math.abs(diff) / prevTotal) * 100);
   if (pct === 0 || Math.abs(diff) < 0.005) {
-    return { tone: 'same', label: `Same vs ${prevLabel}` };
+    return { tone: 'same', label: `0% vs ${prevMon}` };
   }
   if (diff < 0) {
-    return { tone: 'green', label: `${pct}% less vs ${prevLabel}` };
+    return { tone: 'green', label: `-${pct}% vs ${prevMon}` };
   }
-  return { tone: 'red', label: `${pct}% more vs ${prevLabel}` };
+
+  const pctUp = Math.round((diff / prevTotal) * 100);
+  return { tone: 'red', label: formatUpPct(pctUp, prevMon) };
 }
 
 /** Digits only (commas for thousands), no currency symbol — pair with a separate Currency row. */
@@ -130,7 +139,7 @@ export function formatAmountDigits(amount: number) {
 }
 
 export function formatMoney(amount: number, currency: Subscription['currency']) {
-  // Simple MVP formatter; can be swapped for Intl later.
+  // Simple MVP formatter; can be swapped for Intl later. Always two decimal places (e.g. $0.00).
   const rounded = Math.round(amount * 100) / 100;
   const sign = rounded < 0 ? '-' : '';
   const abs = Math.abs(rounded);
@@ -138,6 +147,6 @@ export function formatMoney(amount: number, currency: Subscription['currency']) 
   const cents = Math.round((abs - dollars) * 100);
   const withCommas = dollars.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ',');
   const symbol = currency === 'EUR' ? '€' : currency === 'GEL' ? '₾' : '$';
-  return cents > 0 ? `${sign}${symbol}${withCommas}.${cents.toString().padStart(2, '0')}` : `${sign}${symbol}${withCommas}`;
+  return `${sign}${symbol}${withCommas}.${cents.toString().padStart(2, '0')}`;
 }
 

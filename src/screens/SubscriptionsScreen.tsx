@@ -2,28 +2,22 @@ import React, { useMemo } from 'react';
 import {
   DynamicColorIOS,
   FlatList,
+  Image,
   type ListRenderItemInfo,
   Platform,
   Pressable,
-  ScrollView,
   StyleSheet,
   Text,
   useWindowDimensions,
   View,
 } from 'react-native';
 import { SFIcon } from '../components/SFIcon';
-import { MenuView } from '@react-native-menu/menu';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors, figma } from '../ui/theme';
 import type { NavigationProp } from '@react-navigation/native';
 import { navigateRoot } from '../navigation/navigateRoot';
 import { CompanyLogo } from '../components/CompanyLogo';
-import {
-  useSubscriptionsStore,
-  selectVisibleSubscriptions,
-  type SubscriptionFilter,
-  type SubscriptionSort,
-} from '../features/subscriptions/store';
+import { useSubscriptionsStore, selectVisibleSubscriptions } from '../features/subscriptions/store';
 import { AnimatedMoneyAmount } from '../components/AnimatedMoneyAmount';
 import { formatMoney, getMonthOverMonthSpendPill, monthlySpendTotal } from '../features/subscriptions/calc';
 import type { Subscription } from '../features/subscriptions/types';
@@ -34,7 +28,6 @@ import { hapticImpact, hapticSelection } from '../ui/haptics';
 import { SubscriptionListSkeleton, SkeletonBlock } from '../components/Skeleton';
 
 type Props = { navigation: NavigationProp<any> };
-type MenuOption<T extends string> = { id: T; label: string };
 
 // ─── Design tokens ────────────────────────────────────────────────────────────
 const BG = colors.bg;
@@ -44,14 +37,13 @@ const DIM = colors.textMuted;
 const SEP = colors.borderSoft;
 /** "Active" green from Figma TEXT 273:1689 (node 273:1518) */
 const STATUS_ACTIVE = figma.subscriptions273.statusActive;
-const GREEN_PILL_BG = '#E8F5E9';
-const GREEN_PILL_TEXT = '#1B5E20';
-const RED_PILL_BG = '#FFEBEE';
-const RED_PILL_TEXT = '#C62828';
-const NEUTRAL_PILL_BG = 'rgba(11,8,3,0.07)';
-const NEUTRAL_PILL_TEXT = 'rgba(11,8,3,0.55)';
-/** "Same vs …" — same red as increase chip text (#C62828), fill at 10% opacity */
-const SAME_PILL_BG = 'rgba(198, 40, 40, 0.1)';
+/** M2M pill — green (spend down): #1BAD40 @ 10% / solid; red (spend up): #C62828 @ 10% / solid */
+const MOM_PILL_GREEN_BG = 'rgba(27, 173, 64, 0.1)';
+const MOM_PILL_GREEN_TEXT = '#1BAD40';
+const MOM_PILL_RED_BG = 'rgba(198, 40, 40, 0.1)';
+const MOM_PILL_RED_TEXT = '#C62828';
+const MOM_PILL_NEUTRAL_BG = 'rgba(11, 8, 3, 0.07)';
+const MOM_PILL_NEUTRAL_TEXT = 'rgba(11, 8, 3, 0.55)';
 
 const iosDynamic = (light: string, dark: string, fallback: string = light) =>
   Platform.OS === 'ios' ? DynamicColorIOS({ light, dark }) : fallback;
@@ -61,21 +53,6 @@ const IOS_PRIMARY_LABEL = iosDynamic('#111111', '#FFFFFF', INK);
 const IOS_SECONDARY_LABEL = iosDynamic('rgba(60, 60, 67, 0.62)', 'rgba(235, 235, 245, 0.60)', DIM);
 const IOS_SEPARATOR = iosDynamic('rgba(60, 60, 67, 0.24)', 'rgba(84, 84, 88, 0.65)', SEP);
 const IOS_ROW_HIGHLIGHT = iosDynamic('rgba(120, 120, 128, 0.12)', 'rgba(118, 118, 128, 0.24)', 'rgba(120, 120, 128, 0.12)');
-const STATUS_OPTIONS: MenuOption<SubscriptionFilter>[] = [
-  { id: 'all', label: 'All' },
-  { id: 'active', label: 'Active' },
-  { id: 'trial', label: 'Trial' },
-  { id: 'paused', label: 'Paused' },
-  { id: 'cancelled', label: 'Cancelled' },
-];
-
-const SORT_OPTIONS: MenuOption<SubscriptionSort>[] = [
-  { id: 'nearest_renewal', label: 'Nearest renewal' },
-  { id: 'highest_price', label: 'Highest price' },
-  { id: 'alpha', label: 'Alphabetical' },
-  { id: 'recent', label: 'Recently added' },
-];
-
 // ─── Screen ───────────────────────────────────────────────────────────────────
 export function SubscriptionsScreen({ navigation }: Props) {
   const insets = useSafeAreaInsets();
@@ -83,8 +60,6 @@ export function SubscriptionsScreen({ navigation }: Props) {
   const items     = useSubscriptionsStore((s) => s.items);
   const sort      = useSubscriptionsStore((s) => s.sort);
   const filter    = useSubscriptionsStore((s) => s.filter);
-  const setSort   = useSubscriptionsStore((s) => s.setSort);
-  const setFilter = useSubscriptionsStore((s) => s.setFilter);
   const hydrated  = useSubscriptionsStore((s) => s.hydrated);
 
   const { countFrom: heroMonthlyCountFrom, onCountComplete: onHeroMonthlyCountComplete } =
@@ -112,34 +87,10 @@ export function SubscriptionsScreen({ navigation }: Props) {
     navigateRoot(navigation as any, 'AddSubscription');
   }
 
-  const statusMenuActions = useMemo(
-    () =>
-      STATUS_OPTIONS.map((opt) => ({
-        id: opt.id,
-        title: opt.label,
-        state: filter === opt.id ? 'on' : 'off',
-      })),
-    [filter],
-  );
-  const sortMenuActions = useMemo(
-    () =>
-      SORT_OPTIONS.map((opt) => ({
-        id: opt.id,
-        title: opt.label,
-        state: sort === opt.id ? 'on' : 'off',
-      })),
-    [sort],
-  );
-  const selectedStatusLabel = useMemo(
-    () => STATUS_OPTIONS.find((opt) => opt.id === filter)?.label ?? 'All',
-    [filter],
-  );
-  const selectedSortLabel = useMemo(
-    () => SORT_OPTIONS.find((opt) => opt.id === sort)?.label ?? 'Nearest renewal',
-    [sort],
-  );
-
   const listData = hydrated ? visible : [];
+  const isEmptyPortfolio = hydrated && items.length === 0;
+  const isFilterEmpty = hydrated && items.length > 0 && visible.length === 0;
+
   const renderSubscriptionRow = ({ item, index }: ListRenderItemInfo<Subscription>) => {
     const isFirst = index === 0;
     const isLast = index === listData.length - 1;
@@ -151,38 +102,7 @@ export function SubscriptionsScreen({ navigation }: Props) {
     );
   };
 
-  return hydrated && items.length === 0 ? (
-      <ScrollView
-        style={{ flex: 1 }}
-        contentContainerStyle={[
-          s.emptyStateWrap,
-          { minHeight: Platform.OS === 'ios' ? windowHeight + 1 : windowHeight },
-        ]}
-        contentInsetAdjustmentBehavior={Platform.OS === 'ios' ? 'automatic' : undefined}
-        alwaysBounceVertical
-        bounces
-      >
-        <View style={s.emptyStateCard}>
-            <View style={s.emptyStateIconCircle}>
-              <SFIcon name="doc.text" size={36} color={colors.textMuted} />
-            </View>
-            <Text style={s.emptyStateTitle}>No subscriptions yet</Text>
-            <Text style={s.emptyStateSubtitle}>
-              Track your recurring payments and{'\n'}stay on top of your spending
-            </Text>
-            <Pressable
-              onPress={() => {
-                void hapticImpact();
-                openAdd();
-              }}
-              style={({ pressed }) => [s.emptyStateCta, pressed && s.pressed]}
-            >
-              <SFIcon name="plus" size={20} color="#FFFFFF" />
-              <Text style={s.emptyStateCtaText}>Add Your First Subscription</Text>
-            </Pressable>
-          </View>
-      </ScrollView>
-    ) : (
+  return (
       <FlatList
           style={{ flex: 1 }}
           data={listData}
@@ -198,23 +118,20 @@ export function SubscriptionsScreen({ navigation }: Props) {
             {
               minHeight: Platform.OS === 'ios' ? windowHeight + 1 : windowHeight,
               paddingBottom: insets.bottom + 16,
+              flexGrow: 1,
             },
           ]}
           ListHeaderComponent={(
             <View style={s.figmaTextColumn}>
-            <View style={s.spendingBlock}>
+            <View style={s.spendingBlockAfterFiltersRemoved}>
               <Text style={s.spendingContext}>Spending in {spendingMonthLabel}</Text>
-              {hydrated ? (
-                <AnimatedMoneyAmount
-                  amount={monthly}
-                  currency={currency as any}
-                  style={s.spendingHeroAmount}
-                  countFrom={heroMonthlyCountFrom}
-                  onCountComplete={onHeroMonthlyCountComplete}
-                />
-              ) : (
-                <SkeletonBlock width={200} height={48} borderRadius={12} style={{ marginBottom: 14 }} />
-              )}
+              <AnimatedMoneyAmount
+                amount={monthly}
+                currency={currency as any}
+                style={s.spendingHeroAmount}
+                countFrom={hydrated ? heroMonthlyCountFrom : undefined}
+                onCountComplete={hydrated ? onHeroMonthlyCountComplete : undefined}
+              />
               <View style={s.spendingBottomRow}>
                 {hydrated ? (
                   <>
@@ -225,6 +142,7 @@ export function SubscriptionsScreen({ navigation }: Props) {
                           momPill.tone === 'green' && s.momPillGreen,
                           momPill.tone === 'red' && s.momPillRed,
                           momPill.tone === 'neutral' && s.momPillNeutral,
+                          momPill.tone === 'same' && s.momPillSame,
                         ]}
                         accessibilityRole="text"
                         accessibilityLabel={momPill.label}
@@ -258,49 +176,40 @@ export function SubscriptionsScreen({ navigation }: Props) {
                 )}
               </View>
             </View>
-
-            <View style={s.pillRow}>
-              <MenuView
-                shouldOpenOnLongPress={false}
-                actions={statusMenuActions as any}
-                onPressAction={({ nativeEvent }) => {
-                  void hapticSelection();
-                  setFilter(nativeEvent.event as SubscriptionFilter);
-                }}
-              >
-                <View style={s.pill}>
-                  <View style={s.pillInnerRow}>
-                    <Text style={s.pillText}>{selectedStatusLabel}</Text>
-                    <SFIcon name="chevron.down" size={13} color={colors.textMuted} />
-                  </View>
-                </View>
-              </MenuView>
-              <MenuView
-                shouldOpenOnLongPress={false}
-                actions={sortMenuActions as any}
-                onPressAction={({ nativeEvent }) => {
-                  void hapticSelection();
-                  setSort(nativeEvent.event as SubscriptionSort);
-                }}
-              >
-                <View style={s.pill}>
-                  <View style={s.pillInnerRow}>
-                    <Text style={s.pillText}>{selectedSortLabel}</Text>
-                    <SFIcon name="chevron.down" size={13} color={colors.textMuted} />
-                  </View>
-                </View>
-              </MenuView>
-            </View>
             </View>
           )}
           ListEmptyComponent={
             !hydrated ? (
               <SubscriptionListSkeleton />
-            ) : (
+            ) : isEmptyPortfolio ? (
+              <View style={s.emptyPortfolioWrap}>
+                <Image
+                  source={require('../assets/subscriptionsEmptyIllustration.png')}
+                  style={s.emptyPortfolioIllustration}
+                  resizeMode="contain"
+                  accessibilityIgnoresInvertColors
+                />
+                <Text style={s.emptyPortfolioTitle}>No subscriptions yet</Text>
+                <Text style={s.emptyPortfolioSubtitle}>
+                  Add one to start tracking your spending
+                </Text>
+                <Pressable
+                  onPress={() => {
+                    void hapticImpact();
+                    openAdd();
+                  }}
+                  style={({ pressed }) => [s.emptyPortfolioCta, pressed && s.pressed]}
+                  accessibilityRole="button"
+                  accessibilityLabel="Add Subscription"
+                >
+                  <Text style={s.emptyPortfolioCtaText}>Add Subscription</Text>
+                </Pressable>
+              </View>
+            ) : isFilterEmpty ? (
               <View style={s.emptyFilterCard}>
                 <Text style={s.emptyText}>No subscriptions match this filter.</Text>
               </View>
-            )
+            ) : null
           }
         />
     );
@@ -382,6 +291,18 @@ const s = StyleSheet.create({
       figma.subscriptions273.spendingGroupPredecessorStack,
     marginBottom: figma.subscriptions273.spendingBlockMarginBottom,
   },
+  /** Same as `spendingBlock` but extra bottom margin where filter pills used to sit */
+  spendingBlockAfterFiltersRemoved: {
+    alignSelf: 'stretch',
+    alignItems: 'flex-start',
+    marginTop:
+      figma.subscriptions273.titleToSpendingGroupGap -
+      figma.subscriptions273.spendingGroupPredecessorStack,
+    marginBottom:
+      figma.subscriptions273.spendingBlockMarginBottom +
+      16 +
+      figma.subscriptions273.pillRowMarginBottom,
+  },
   spendingContext: {
     ...figma.subscriptions273.spendingContext,
     marginBottom: figma.subscriptions273.spendingGroupRowGap,
@@ -407,16 +328,20 @@ const s = StyleSheet.create({
   },
   momPill: {
     flexDirection: 'row',
-    minHeight: 32,
-    paddingVertical: 6,
-    paddingHorizontal: 8,
+    height: 34,
+    paddingLeft: 12,
+    paddingRight: 12,
     justifyContent: 'center',
     alignItems: 'center',
     gap: 10,
-    borderRadius: 8,
+    borderRadius: 10,
     flexShrink: 1,
     maxWidth: '100%',
   },
+  momPillGreen: { backgroundColor: MOM_PILL_GREEN_BG },
+  momPillRed: { backgroundColor: MOM_PILL_RED_BG },
+  momPillNeutral: { backgroundColor: MOM_PILL_NEUTRAL_BG },
+  momPillSame: { backgroundColor: MOM_PILL_NEUTRAL_BG },
   /** MoM pill — 14 / medium (yearly line uses Invest-style 16 / semibold) */
   momPillText: {
     fontFamily: 'SF Pro Display',
@@ -424,14 +349,10 @@ const s = StyleSheet.create({
     lineHeight: 18,
     fontWeight: '500',
   },
-  momPillGreen: { backgroundColor: GREEN_PILL_BG },
-  momPillTextGreen: { color: GREEN_PILL_TEXT },
-  momPillRed: { backgroundColor: RED_PILL_BG },
-  momPillTextRed: { color: RED_PILL_TEXT },
-  momPillNeutral: { backgroundColor: NEUTRAL_PILL_BG },
-  momPillTextNeutral: { color: NEUTRAL_PILL_TEXT },
-  momPillSame: { backgroundColor: SAME_PILL_BG },
-  momPillTextSame: { color: RED_PILL_TEXT },
+  momPillTextGreen: { color: MOM_PILL_GREEN_TEXT },
+  momPillTextRed: { color: MOM_PILL_RED_TEXT },
+  momPillTextNeutral: { color: MOM_PILL_NEUTRAL_TEXT },
+  momPillTextSame: { color: MOM_PILL_NEUTRAL_TEXT },
   /** Matches InvestScreen `monthlyLabel` (Monthly investment) */
   spendingYearly: {
     fontFamily: 'SF Pro Display',
@@ -447,28 +368,6 @@ const s = StyleSheet.create({
     alignSelf: 'auto',
     textAlign: 'left',
     flexShrink: 0,
-  },
-
-  pillRow: {
-    flexDirection: 'row',
-    justifyContent: 'flex-start',
-    flexWrap: 'wrap',
-    gap: figma.subscriptions273.pillRowGap,
-    marginTop: 16,
-    marginBottom: figma.subscriptions273.pillRowMarginBottom,
-    alignSelf: 'stretch',
-  },
-  pill: {
-    ...figma.subscriptions273.pill,
-  },
-  pillInnerRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-  },
-  pillText: {
-    ...figma.subscriptions273.pillLabel,
-    ...androidTextFix,
   },
 
   rowCardItem: {
@@ -489,6 +388,68 @@ const s = StyleSheet.create({
     borderRadius: 24,
     paddingHorizontal: 16,
     paddingVertical: 28,
+  },
+  /** Empty list when user has no subscriptions yet — no card chrome; sits on screen bg */
+  emptyPortfolioWrap: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    alignSelf: 'stretch',
+    paddingTop: 8,
+    paddingBottom: 8,
+  },
+  /** Source asset 540×322 — height 80px, width from aspect ratio */
+  emptyPortfolioIllustration: {
+    height: 80,
+    aspectRatio: 540 / 322,
+    marginBottom: 24,
+    alignSelf: 'center',
+  },
+  emptyPortfolioTitle: {
+    fontFamily: 'SF Pro Display',
+    fontSize: 16,
+    lineHeight: 21,
+    fontWeight: '600',
+    color: IOS_PRIMARY_LABEL,
+    textAlign: 'center',
+    alignSelf: 'stretch',
+    ...androidTextFix,
+  },
+  emptyPortfolioSubtitle: {
+    marginTop: 8,
+    fontFamily: 'SF Pro Display',
+    fontSize: 14,
+    lineHeight: 19,
+    fontWeight: '400',
+    color: IOS_SECONDARY_LABEL,
+    textAlign: 'center',
+    alignSelf: 'stretch',
+    ...androidTextFix,
+  },
+  emptyPortfolioCta: {
+    marginTop: 24,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: INK,
+    borderRadius: 999,
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+    alignSelf: 'center',
+    flexGrow: 0,
+  },
+  /** Matches Figma: SF Pro 14 / 510, liga+clig off, −0.23 tracking */
+  emptyPortfolioCtaText: {
+    fontFamily: 'SF Pro Display',
+    fontSize: 14,
+    ...Platform.select({
+      ios: { fontWeight: '510' as any },
+      default: { fontWeight: '500' },
+    }),
+    color: '#FFFFFF',
+    letterSpacing: -0.23,
+    ...(Platform.OS !== 'web'
+      ? ({ fontFeatureSettings: "'liga' 0, 'clig' 0" } as const)
+      : {}),
+    ...androidTextFix,
   },
   sepFull: {
     height: StyleSheet.hairlineWidth,
@@ -577,68 +538,4 @@ const s = StyleSheet.create({
   fallbackText: { fontSize: 17, fontWeight: '800', color: INK },
 
   emptyText: { textAlign: 'left', fontSize: 14, fontWeight: '500', color: DIM },
-
-  emptyStateWrap: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingHorizontal: 32,
-    paddingBottom: 80,
-  },
-  emptyStateCard: {
-    backgroundColor: CARD,
-    borderRadius: 24,
-    paddingVertical: 48,
-    paddingHorizontal: 32,
-    alignItems: 'center',
-    alignSelf: 'stretch',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.06,
-    shadowRadius: 12,
-    elevation: 3,
-  },
-  emptyStateIconCircle: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    backgroundColor: BG,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 24,
-  },
-  emptyStateTitle: {
-    fontFamily: 'BricolageGrotesque_800ExtraBold',
-    fontSize: 22,
-    letterSpacing: -0.5,
-    color: INK,
-    marginBottom: 12,
-    textAlign: 'center',
-  },
-  emptyStateSubtitle: {
-    fontFamily: 'SF Pro Display',
-    fontSize: 15,
-    fontWeight: '500',
-    lineHeight: 22,
-    color: DIM,
-    textAlign: 'center',
-    marginBottom: 32,
-  },
-  emptyStateCta: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 6,
-    backgroundColor: INK,
-    borderRadius: 999,
-    paddingVertical: 14,
-    paddingHorizontal: 24,
-    alignSelf: 'stretch',
-  },
-  emptyStateCtaText: {
-    fontFamily: 'SF Pro Display',
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#FFFFFF',
-  },
 });

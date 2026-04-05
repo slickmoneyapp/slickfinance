@@ -18,7 +18,11 @@ import { DatePickerModal } from '../components/DatePickerModal';
 import { TimePickerModal } from '../components/TimePickerModal';
 import { hapticImpactMedium, hapticSelection } from '../ui/haptics';
 import { CompanyLogo } from '../components/CompanyLogo';
-import { toLocalDateString } from '../features/subscriptions/buildBillingHistoryFromSubscription';
+import {
+  defaultNextChargeAfterStart,
+  defaultSubscriptionStartDate,
+  toLocalDateString,
+} from '../features/subscriptions/buildBillingHistoryFromSubscription';
 import { useSubscriptionsStore } from '../features/subscriptions/store';
 import { requestNotificationPermissions } from '../features/notifications/service';
 import { colors, radius, sheetTypography } from '../ui/theme';
@@ -94,17 +98,12 @@ export function AddSubscriptionFormScreen({ navigation, route }: Props) {
   const [price, setPrice] = useState('');
   const [currency, setCurrency] = useState<'USD' | 'EUR' | 'GEL'>('USD');
   const [billingCycle, setBillingCycle] = useState<Subscription['billingCycle']>('monthly');
-  const [nextCharge, setNextCharge] = useState<Date>(() => {
-    const d = new Date();
-    d.setDate(d.getDate() + 30);
-    return d;
-  });
-  const [subscriptionStartDate, setSubscriptionStartDate] = useState<Date>(() => {
-    const d = new Date();
-    d.setDate(d.getDate() + 30);
-    return d;
-  });
+  const [subscriptionStartDate, setSubscriptionStartDate] = useState<Date>(() => defaultSubscriptionStartDate());
+  const [nextCharge, setNextCharge] = useState<Date>(() =>
+    defaultNextChargeAfterStart(defaultSubscriptionStartDate(), 'monthly', 30),
+  );
   const subscriptionStartTouchedRef = useRef(false);
+  const nextChargeTouchedRef = useRef(false);
   const [isTrial, setIsTrial] = useState(false);
   const [trialLength, setTrialLength] = useState<TrialLength>('7d');
   const [list, setList] = useState('Personal');
@@ -124,10 +123,9 @@ export function AddSubscriptionFormScreen({ navigation, route }: Props) {
   }, []);
 
   useEffect(() => {
-    if (!subscriptionStartTouchedRef.current) {
-      setSubscriptionStartDate(new Date(nextCharge.getTime()));
-    }
-  }, [nextCharge]);
+    if (nextChargeTouchedRef.current) return;
+    setNextCharge(defaultNextChargeAfterStart(subscriptionStartDate, billingCycle, 30));
+  }, [subscriptionStartDate, billingCycle]);
 
   const filteredCategories = useMemo(() => {
     const q = categorySearch.trim().toLowerCase();
@@ -619,7 +617,10 @@ export function AddSubscriptionFormScreen({ navigation, route }: Props) {
         visible={showDatePicker}
         value={nextCharge}
         onClose={() => setShowDatePicker(false)}
-        onSelect={(d) => setNextCharge(d)}
+        onSelect={(d) => {
+          nextChargeTouchedRef.current = true;
+          setNextCharge(d);
+        }}
         title="Payment date"
       />
       <DatePickerModal

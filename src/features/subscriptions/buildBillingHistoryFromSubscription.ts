@@ -1,4 +1,4 @@
-import type { BillingHistoryEntry, Subscription } from './types';
+import type { BillingCycle, BillingHistoryEntry, Subscription } from './types';
 
 /** Local calendar date as YYYY-MM-DD (no timezone shift for display). */
 export function toLocalDateString(d: Date): string {
@@ -24,13 +24,47 @@ function endOfToday(): Date {
 }
 
 /** Add calendar months keeping day-of-month when possible (e.g. Jan 31 → Feb 28). */
-function addMonthsSafe(d: Date, months: number): Date {
+export function addMonthsSafe(d: Date, months: number): Date {
   const day = d.getDate();
   const next = new Date(d.getTime());
   next.setMonth(next.getMonth() + months);
   const dim = new Date(next.getFullYear(), next.getMonth() + 1, 0).getDate();
   next.setDate(Math.min(day, dim));
   return next;
+}
+
+/** Today’s calendar date at local noon (matches `parseLocalDate` / date pickers). */
+export function defaultSubscriptionStartDate(): Date {
+  const now = new Date();
+  return new Date(now.getFullYear(), now.getMonth(), now.getDate(), 12, 0, 0, 0);
+}
+
+/**
+ * First payment after subscription start, aligned with `billingCycle` / `customCycleDays`
+ * (same stepping as billing-history projection).
+ */
+export function defaultNextChargeAfterStart(
+  subscriptionStart: Date,
+  cycle: BillingCycle,
+  customCycleDays: number
+): Date {
+  const start = new Date(subscriptionStart.getTime());
+  switch (cycle) {
+    case 'weekly':
+      return new Date(start.getTime() + 7 * 86400000);
+    case 'monthly':
+      return addMonthsSafe(start, 1);
+    case 'quarterly':
+      return addMonthsSafe(start, 3);
+    case 'yearly':
+      return addMonthsSafe(start, 12);
+    case 'custom': {
+      const n = Math.max(1, customCycleDays);
+      return new Date(start.getTime() + n * 86400000);
+    }
+    default:
+      return addMonthsSafe(start, 1);
+  }
 }
 
 /**

@@ -1,4 +1,3 @@
-import DateTimePicker from '@react-native-community/datetimepicker';
 import React from 'react';
 import { MenuView } from '@react-native-menu/menu';
 import {
@@ -10,6 +9,7 @@ import {
   TextInput,
   View,
 } from 'react-native';
+import { AppDateTimePicker } from '../../components/AppDateTimePicker';
 import { SFIcon } from '../../components/SFIcon';
 import { CompanyLogo } from '../../components/CompanyLogo';
 import { hapticSelection } from '../../ui/haptics';
@@ -102,6 +102,8 @@ export type SubscriptionDetailsFormProps = {
   subscriptionStartDate: Date;
   onSubscriptionStartDateChange: (d: Date) => void;
   subscriptionStartTouchedRef: React.MutableRefObject<boolean>;
+  /** When set, marked true if the user changes the payment date (add flow auto-sync). */
+  nextChargeTouchedRef?: React.MutableRefObject<boolean>;
   isTrial: boolean;
   onIsTrialChange: (v: boolean) => void;
   trialLengthDays: TrialLengthDays;
@@ -273,12 +275,15 @@ export function SubscriptionDetailsForm(p: SubscriptionDetailsFormProps) {
         <CellRow
           label="Payment date"
           right={
-            <DateTimePicker
+            <AppDateTimePicker
               value={p.nextCharge}
               mode="date"
               display="compact"
               onChange={(_, selected) => {
-                if (selected) p.onNextChargeChange(selected);
+                if (selected) {
+                  if (p.nextChargeTouchedRef) p.nextChargeTouchedRef.current = true;
+                  p.onNextChargeChange(selected);
+                }
               }}
             />
           }
@@ -287,7 +292,7 @@ export function SubscriptionDetailsForm(p: SubscriptionDetailsFormProps) {
         <CellRow
           label="Subscription start"
           right={
-            <DateTimePicker
+            <AppDateTimePicker
               value={p.subscriptionStartDate}
               mode="date"
               display="compact"
@@ -422,7 +427,7 @@ export function SubscriptionDetailsForm(p: SubscriptionDetailsFormProps) {
           <CellRow
             label="Time"
             right={
-              <DateTimePicker
+              <AppDateTimePicker
                 value={parseTime(p.reminderTime)}
                 mode="time"
                 display="compact"

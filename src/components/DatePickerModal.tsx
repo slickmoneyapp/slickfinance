@@ -7,7 +7,7 @@ import {
   Text,
   View,
 } from 'react-native';
-import DateTimePicker from '@react-native-community/datetimepicker';
+import { AppDateTimePicker } from './AppDateTimePicker';
 import { colors, radius } from '../ui/theme';
 
 const INK = colors.text;
@@ -24,7 +24,7 @@ export function DatePickerModal({ visible, value, onClose, onSelect, title = 'Pa
   if (Platform.OS === 'android') {
     if (!visible) return null;
     return (
-      <DateTimePicker
+      <AppDateTimePicker
         value={value}
         mode="date"
         display="default"
@@ -47,7 +47,7 @@ export function DatePickerModal({ visible, value, onClose, onSelect, title = 'Pa
               <Text style={styles.doneText}>Done</Text>
             </Pressable>
           </View>
-          <DateTimePicker
+          <AppDateTimePicker
             value={value}
             mode="date"
             display="inline"

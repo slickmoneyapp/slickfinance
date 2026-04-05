@@ -15,7 +15,7 @@ import { useSubscriptionsStore } from '../features/subscriptions/store';
 import { parseLocalDate, toLocalDateString } from '../features/subscriptions/buildBillingHistoryFromSubscription';
 import type { NativeStackHeaderItem, NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../../App';
-import { colors, radius, typeScale } from '../ui/theme';
+import { colors } from '../ui/theme';
 import { hapticImpactMedium, hapticSelection } from '../ui/haptics';
 import { requestNotificationPermissions } from '../features/notifications/service';
 import type { BillingCycle, CurrencyCode, Subscription } from '../features/subscriptions/types';
@@ -502,24 +502,12 @@ export function SubscriptionDetailScreen({ navigation, route }: Props) {
               accessibilityLabel="Delete subscription"
               onPress={handleDelete}
               android_ripple={{ color: 'rgba(229, 57, 53, 0.16)' }}
-              style={({ pressed }) =>
-                Platform.OS === 'ios'
-                  ? [
-                      subscriptionFormStyles.iosDestructiveRow,
-                      pressed && subscriptionFormStyles.rowPressed,
-                    ]
-                  : [styles.deleteButtonAndroid, pressed && styles.pressed]
-              }
+              style={({ pressed }) => [
+                subscriptionFormStyles.deleteSubscriptionButton,
+                pressed && { opacity: 0.8 },
+              ]}
             >
-              <Text
-                style={
-                  Platform.OS === 'ios'
-                    ? subscriptionFormStyles.iosDestructiveRowText
-                    : styles.deleteButtonTextAndroid
-                }
-              >
-                Delete subscription
-              </Text>
+              <Text style={subscriptionFormStyles.deleteSubscriptionButtonText}>Delete subscription</Text>
             </Pressable>
           ) : null}
     </ScrollView>
@@ -559,22 +547,4 @@ const fallbackStyles = StyleSheet.create({
 
 const styles = StyleSheet.create({
   scroll: { flex: 1, backgroundColor: colors.bg },
-  pressed: { opacity: 0.75 },
-
-  deleteButtonAndroid: {
-    marginTop: 24,
-    alignSelf: 'stretch',
-    minHeight: 48,
-    borderRadius: radius.button,
-    borderWidth: 1,
-    borderColor: '#E53935',
-    backgroundColor: colors.surface,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: 16,
-  },
-  deleteButtonTextAndroid: {
-    ...typeScale.button,
-    color: '#E53935',
-  },
 });

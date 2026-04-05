@@ -195,23 +195,19 @@ export const subscriptionFormStyles = StyleSheet.create({
     minWidth: 48,
     paddingVertical: 0,
   },
-  /** Inset-grouped style destructive row (Settings / native list). */
-  iosDestructiveRow: {
-    marginTop: 24,
+  /** Compact destructive action — no stroke, smaller than login CTAs. */
+  deleteSubscriptionButton: {
+    marginTop: 20,
     alignSelf: 'stretch',
     minHeight: 44,
+    paddingVertical: 10,
     borderRadius: 12,
-    backgroundColor: IOS_CARD_BG,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    overflow: 'hidden',
   },
-  iosDestructiveRowText: {
-    fontSize: 16,
+  deleteSubscriptionButtonText: {
+    fontSize: 15,
     fontWeight: '600',
-    lineHeight: 20,
     color: IOS_DESTRUCTIVE,
     ...androidTextFix,
   },
